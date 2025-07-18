@@ -274,6 +274,138 @@ app.get('/api/check-updates', async (req, res) => {
   }
 });
 
+app.post('/api/update-mcserv', async (req, res) => {
+  try {
+    const { exec } = require('child_process');
+    const path = require('path');
+    
+    // Get the current directory (where MCServ is installed)
+    const currentDir = __dirname;
+    
+    // Create a unique update ID for tracking
+    const updateId = `update_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Initialize update progress
+    global.updateProgress = global.updateProgress || {};
+    global.updateProgress[updateId] = {
+      status: 'starting',
+      message: 'Starting MCServ update...',
+      progress: 0
+    };
+    
+    // Emit initial progress
+    io.emit('updateProgress', {
+      id: updateId,
+      ...global.updateProgress[updateId]
+    });
+    
+    // Function to update progress
+    const updateProgress = (status, message, progress) => {
+      global.updateProgress[updateId] = { status, message, progress };
+      io.emit('updateProgress', {
+        id: updateId,
+        ...global.updateProgress[updateId]
+      });
+    };
+    
+    // Step 1: Check if git is available
+    updateProgress('checking', 'Checking if git is available...', 10);
+    
+    exec('git --version', (error) => {
+      if (error) {
+        updateProgress('error', 'Git is not installed. Please install git to update MCServ.', 0);
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Git is not installed. Please install git to update MCServ.' 
+        });
+      }
+      
+      // Step 2: Check if this is a git repository
+      updateProgress('checking', 'Checking if this is a git repository...', 20);
+      
+      exec('git status', { cwd: currentDir }, (error) => {
+        if (error) {
+          updateProgress('error', 'This is not a git repository. Please clone MCServ from GitHub to enable updates.', 0);
+          return res.status(500).json({ 
+            success: false, 
+            message: 'This is not a git repository. Please clone MCServ from GitHub to enable updates.' 
+          });
+        }
+        
+        // Step 3: Fetch latest changes
+        updateProgress('fetching', 'Fetching latest changes from GitHub...', 30);
+        
+        exec('git fetch origin', { cwd: currentDir }, (error) => {
+          if (error) {
+            updateProgress('error', 'Failed to fetch updates from GitHub. Check your internet connection.', 0);
+            return res.status(500).json({ 
+              success: false, 
+              message: 'Failed to fetch updates from GitHub. Check your internet connection.' 
+            });
+          }
+          
+          // Step 4: Check if there are updates
+          updateProgress('checking', 'Checking for available updates...', 50);
+          
+          exec('git log HEAD..origin/main --oneline', { cwd: currentDir }, (error, stdout) => {
+            if (error || !stdout.trim()) {
+              updateProgress('completed', 'MCServ is already up to date!', 100);
+              return res.json({ 
+                success: true, 
+                message: 'MCServ is already up to date!',
+                updateId 
+              });
+            }
+            
+            // Step 5: Pull latest changes
+            updateProgress('downloading', 'Downloading latest MCServ code...', 70);
+            
+            exec('git pull origin main', { cwd: currentDir }, (error, stdout) => {
+              if (error) {
+                updateProgress('error', 'Failed to update MCServ. Please try again.', 0);
+                return res.status(500).json({ 
+                  success: false, 
+                  message: 'Failed to update MCServ. Please try again.' 
+                });
+              }
+              
+              // Step 6: Install dependencies if package.json changed
+              updateProgress('installing', 'Installing updated dependencies...', 85);
+              
+              exec('npm install', { cwd: currentDir }, (error) => {
+                if (error) {
+                  updateProgress('warning', 'Update completed but failed to install dependencies. You may need to run "npm install" manually.', 95);
+                } else {
+                  updateProgress('completed', 'MCServ updated successfully! Restart the server to apply changes.', 100);
+                }
+                
+                // Clean up after 30 seconds
+                setTimeout(() => {
+                  delete global.updateProgress[updateId];
+                }, 30000);
+                
+                res.json({ 
+                  success: true, 
+                  message: 'MCServ updated successfully! Restart the server to apply changes.',
+                  updateId,
+                  needsRestart: true
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+    
+  } catch (error) {
+    console.error('Update error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update MCServ' 
+    });
+  }
+});
+
 app.post('/api/transfer-hosting', (req, res) => {
   const { newHost } = req.body;
   if (!newHost) {
