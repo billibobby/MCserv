@@ -1,0 +1,6 @@
+node_modules/
+uploads/
+backups/
+minecraft-server/world/
+minecraft-server/logs/
+.env
