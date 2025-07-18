@@ -330,19 +330,87 @@ app.post('/api/download-mod', async (req, res) => {
     
     const filePath = path.join(modsDir, filename);
     
-    // Download the file
+    // Create a unique download ID for tracking
+    const downloadId = `mod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Initialize download progress
+    global.downloadProgress = global.downloadProgress || {};
+    global.downloadProgress[downloadId] = {
+      type: 'mod',
+      name: modName,
+      filename: filename,
+      progress: 0,
+      status: 'starting',
+      totalSize: 0,
+      downloadedSize: 0,
+      speed: 0,
+      eta: 0,
+      startTime: Date.now()
+    };
+    
+    // Download the file with progress tracking
     const file = fs.createWriteStream(filePath);
     
     https.get(url, (response) => {
+      const totalSize = parseInt(response.headers['content-length'], 10);
+      global.downloadProgress[downloadId].totalSize = totalSize;
+      global.downloadProgress[downloadId].status = 'downloading';
+      
+      let downloadedSize = 0;
+      const startTime = Date.now();
+      
+      response.on('data', (chunk) => {
+        downloadedSize += chunk.length;
+        const progress = Math.round((downloadedSize / totalSize) * 100);
+        const elapsed = (Date.now() - startTime) / 1000;
+        const speed = downloadedSize / elapsed;
+        const eta = totalSize > downloadedSize ? (totalSize - downloadedSize) / speed : 0;
+        
+        global.downloadProgress[downloadId] = {
+          ...global.downloadProgress[downloadId],
+          progress,
+          downloadedSize,
+          speed,
+          eta
+        };
+        
+        // Emit progress to all connected clients
+        io.emit('downloadProgress', {
+          id: downloadId,
+          ...global.downloadProgress[downloadId]
+        });
+      });
+      
       response.pipe(file);
       
       file.on('finish', () => {
         file.close();
+        global.downloadProgress[downloadId].status = 'completed';
+        global.downloadProgress[downloadId].progress = 100;
+        
+        io.emit('downloadProgress', {
+          id: downloadId,
+          ...global.downloadProgress[downloadId]
+        });
+        
+        // Clean up after 30 seconds
+        setTimeout(() => {
+          delete global.downloadProgress[downloadId];
+        }, 30000);
+        
         console.log(`Downloaded mod: ${modName} (${filename})`);
-        res.json({ success: true, message: `Successfully downloaded ${modName}` });
+        res.json({ success: true, message: `Successfully downloaded ${modName}`, downloadId });
       });
     }).on('error', (err) => {
       fs.unlink(filePath, () => {}); // Delete the file if download failed
+      global.downloadProgress[downloadId].status = 'error';
+      global.downloadProgress[downloadId].error = err.message;
+      
+      io.emit('downloadProgress', {
+        id: downloadId,
+        ...global.downloadProgress[downloadId]
+      });
+      
       console.error('Download error:', err);
       res.status(500).json({ success: false, message: 'Failed to download mod' });
     });
@@ -408,6 +476,129 @@ app.get('/api/connection-test', (req, res) => {
   });
   
   testSocket.connect(25565, 'localhost');
+});
+
+app.post('/api/download-server', async (req, res) => {
+  const { version } = req.body;
+  
+  if (!version) {
+    return res.status(400).json({ success: false, message: 'Version is required' });
+  }
+  
+  try {
+    const https = require('https');
+    const fs = require('fs');
+    
+    // Get the download URL for the specified version
+    const versionUrl = `https://piston-meta.mojang.com/v1/packages/24b08e167c6611f7ad895ae1e8b5258f819184aa/${version}.json`;
+    
+    const versionData = await new Promise((resolve, reject) => {
+      https.get(versionUrl, (response) => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on('error', reject);
+    });
+    
+    const downloadUrl = versionData.downloads.server.url;
+    const filename = `server-${version}.jar`;
+    const filePath = path.join(__dirname, 'minecraft-server', filename);
+    
+    // Create a unique download ID for tracking
+    const downloadId = `server_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Initialize download progress
+    global.downloadProgress = global.downloadProgress || {};
+    global.downloadProgress[downloadId] = {
+      type: 'server',
+      name: `Minecraft Server ${version}`,
+      filename: filename,
+      progress: 0,
+      status: 'starting',
+      totalSize: 0,
+      downloadedSize: 0,
+      speed: 0,
+      eta: 0,
+      startTime: Date.now()
+    };
+    
+    // Download the file with progress tracking
+    const file = fs.createWriteStream(filePath);
+    
+    https.get(downloadUrl, (response) => {
+      const totalSize = parseInt(response.headers['content-length'], 10);
+      global.downloadProgress[downloadId].totalSize = totalSize;
+      global.downloadProgress[downloadId].status = 'downloading';
+      
+      let downloadedSize = 0;
+      const startTime = Date.now();
+      
+      response.on('data', (chunk) => {
+        downloadedSize += chunk.length;
+        const progress = Math.round((downloadedSize / totalSize) * 100);
+        const elapsed = (Date.now() - startTime) / 1000;
+        const speed = downloadedSize / elapsed;
+        const eta = totalSize > downloadedSize ? (totalSize - downloadedSize) / speed : 0;
+        
+        global.downloadProgress[downloadId] = {
+          ...global.downloadProgress[downloadId],
+          progress,
+          downloadedSize,
+          speed,
+          eta
+        };
+        
+        // Emit progress to all connected clients
+        io.emit('downloadProgress', {
+          id: downloadId,
+          ...global.downloadProgress[downloadId]
+        });
+      });
+      
+      response.pipe(file);
+      
+      file.on('finish', () => {
+        file.close();
+        global.downloadProgress[downloadId].status = 'completed';
+        global.downloadProgress[downloadId].progress = 100;
+        
+        io.emit('downloadProgress', {
+          id: downloadId,
+          ...global.downloadProgress[downloadId]
+        });
+        
+        // Clean up after 30 seconds
+        setTimeout(() => {
+          delete global.downloadProgress[downloadId];
+        }, 30000);
+        
+        console.log(`Downloaded server: ${version} (${filename})`);
+        res.json({ success: true, message: `Successfully downloaded Minecraft Server ${version}`, downloadId });
+      });
+    }).on('error', (err) => {
+      fs.unlink(filePath, () => {}); // Delete the file if download failed
+      global.downloadProgress[downloadId].status = 'error';
+      global.downloadProgress[downloadId].error = err.message;
+      
+      io.emit('downloadProgress', {
+        id: downloadId,
+        ...global.downloadProgress[downloadId]
+      });
+      
+      console.error('Download error:', err);
+      res.status(500).json({ success: false, message: 'Failed to download server' });
+    });
+    
+  } catch (error) {
+    console.error('Server download error:', error);
+    res.status(500).json({ success: false, message: 'Failed to download server' });
+  }
 });
 
 // Socket.IO event handlers
