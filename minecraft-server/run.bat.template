@@ -1,0 +1,40 @@
+@echo off
+
+REM Minecraft Server Run Script Template (Windows)
+REM Copy this file to run.bat and edit the values
+
+REM Server JAR file (change this to your server jar)
+set SERVER_JAR=server.jar
+
+REM JVM Arguments file
+set JVM_ARGS_FILE=user_jvm_args.txt
+
+REM Check if server jar exists
+if not exist "%SERVER_JAR%" (
+    echo ❌ Error: Server JAR file not found: %SERVER_JAR%
+    echo 📥 Please download a server JAR file first
+    pause
+    exit /b 1
+)
+
+REM Check if eula is accepted
+findstr /c:"eula=true" eula.txt >nul
+if errorlevel 1 (
+    echo ⚠️  EULA not accepted. Please edit eula.txt and set eula=true
+    pause
+    exit /b 1
+)
+
+REM Load JVM arguments if file exists
+set JVM_ARGS=
+if exist "%JVM_ARGS_FILE%" (
+    for /f "delims=" %%i in (%JVM_ARGS_FILE%) do set JVM_ARGS=!JVM_ARGS! %%i
+)
+
+REM Start the server
+echo 🚀 Starting Minecraft Server...
+echo 📁 Server JAR: %SERVER_JAR%
+echo ⚙️  JVM Args: %JVM_ARGS%
+
+java %JVM_ARGS% -jar "%SERVER_JAR%" nogui
+pause 

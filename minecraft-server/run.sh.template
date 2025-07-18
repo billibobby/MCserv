@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Minecraft Server Run Script Template
+# Copy this file to run.sh and edit the values
+
+# Server JAR file (change this to your server jar)
+SERVER_JAR="server.jar"
+
+# JVM Arguments file
+JVM_ARGS_FILE="user_jvm_args.txt"
+
+# Check if server jar exists
+if [ ! -f "$SERVER_JAR" ]; then
+    echo "❌ Error: Server JAR file not found: $SERVER_JAR"
+    echo "📥 Please download a server JAR file first"
+    exit 1
+fi
+
+# Check if eula is accepted
+if [ ! -f "eula.txt" ] || ! grep -q "eula=true" eula.txt; then
+    echo "⚠️  EULA not accepted. Please edit eula.txt and set eula=true"
+    exit 1
+fi
+
+# Load JVM arguments if file exists
+JVM_ARGS=""
+if [ -f "$JVM_ARGS_FILE" ]; then
+    JVM_ARGS=$(cat "$JVM_ARGS_FILE")
+fi
+
+# Start the server
+echo "🚀 Starting Minecraft Server..."
+echo "📁 Server JAR: $SERVER_JAR"
+echo "⚙️  JVM Args: $JVM_ARGS"
+
+java $JVM_ARGS -jar "$SERVER_JAR" nogui 

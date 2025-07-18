@@ -1,0 +1,49 @@
+# Minecraft Server Properties Template
+# Copy this file to server.properties and edit the values
+
+# Server Settings
+server-port=25565
+server-ip=
+max-players=20
+gamemode=survival
+difficulty=normal
+pvp=true
+spawn-protection=16
+view-distance=10
+simulation-distance=10
+
+# World Settings
+level-name=world
+level-seed=
+level-type=default
+generate-structures=true
+max-world-size=29999984
+
+# Player Settings
+online-mode=true
+white-list=false
+allow-flight=false
+force-gamemode=false
+hardcore=false
+
+# Network Settings
+enable-query=false
+query.port=25565
+enable-rcon=false
+rcon.port=25575
+rcon.password=
+
+# Performance Settings
+max-tick-time=60000
+use-native-transport=true
+enable-status=true
+entity-broadcast-range-percentage=100
+
+# Other Settings
+motd=A Minecraft Server
+enable-command-block=false
+max-players=20
+network-compression-threshold=256
+require-resource-pack=false
+resource-pack=
+resource-pack-sha1= 
