@@ -36,6 +36,9 @@ let userColors = [
 ];
 let colorIndex = 0;
 
+// Download progress tracking
+let activeDownloads = new Map(); // downloadId -> {type, filename, progress, total, status}
+
 // Auto-update system
 const CURRENT_VERSION = '1.0.0';
 const GITHUB_REPO = 'billibobby/MCserv';
@@ -111,7 +114,7 @@ async function checkForUpdates() {
       };
     }
     return { available: false };
-  } catch (error) {
+    } catch (error) {
     console.error('Error checking for updates:', error);
     return { available: false, error: error.message };
   }
@@ -139,6 +142,72 @@ function stopUpdateChecker() {
   if (updateCheckInterval) {
     clearInterval(updateCheckInterval);
     updateCheckInterval = null;
+  }
+}
+
+// Download progress functions
+function createDownloadId() {
+  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+}
+
+function updateDownloadProgress(downloadId, progress, total, status = 'downloading') {
+  const download = activeDownloads.get(downloadId);
+  if (download) {
+    download.progress = progress;
+    download.total = total;
+    download.status = status;
+    download.percentage = total > 0 ? Math.round((progress / total) * 100) : 0;
+    
+    // Emit progress update to all clients
+    io.emit('downloadProgress', {
+      downloadId,
+      type: download.type,
+      filename: download.filename,
+      progress,
+      total,
+      percentage: download.percentage,
+      status,
+      speed: download.speed || 0
+    });
+  }
+}
+
+function startDownload(downloadId, type, filename) {
+  activeDownloads.set(downloadId, {
+    type,
+    filename,
+    progress: 0,
+    total: 0,
+    status: 'starting',
+    startTime: Date.now(),
+    speed: 0
+  });
+  
+  io.emit('downloadStarted', {
+    downloadId,
+    type,
+    filename
+  });
+}
+
+function completeDownload(downloadId, success = true, error = null) {
+  const download = activeDownloads.get(downloadId);
+  if (download) {
+    download.status = success ? 'completed' : 'failed';
+    download.error = error;
+    
+    io.emit('downloadCompleted', {
+      downloadId,
+      type: download.type,
+      filename: download.filename,
+      success,
+      error
+    });
+    
+    // Remove from active downloads after a delay
+    setTimeout(() => {
+      activeDownloads.delete(downloadId);
+    }, 5000);
   }
 }
 
@@ -274,135 +343,74 @@ app.get('/api/check-updates', async (req, res) => {
   }
 });
 
-app.post('/api/update-mcserv', async (req, res) => {
+app.post('/api/download-server', async (req, res) => {
+  const { version } = req.body;
+  
+  if (!version) {
+    return res.status(400).json({ success: false, message: 'Version is required' });
+  }
+
   try {
-    const { exec } = require('child_process');
-    const path = require('path');
+    const downloadId = createDownloadId();
+    const filename = `server-${version}.jar`;
     
-    // Get the current directory (where MCServ is installed)
-    const currentDir = __dirname;
+    // Start download tracking
+    startDownload(downloadId, 'server', filename);
     
-    // Create a unique update ID for tracking
-    const updateId = `update_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Get the download URL for the version
+    const manifestUrl = 'https://launchermeta.mojang.com/mc/game/version_manifest.json';
+    const manifestResponse = await fetch(manifestUrl);
+    const manifest = await manifestResponse.json();
     
-    // Initialize update progress
-    global.updateProgress = global.updateProgress || {};
-    global.updateProgress[updateId] = {
-      status: 'starting',
-      message: 'Starting MCServ update...',
-      progress: 0
-    };
+    const versionInfo = manifest.versions.find(v => v.id === version);
+    if (!versionInfo) {
+      completeDownload(downloadId, false, 'Version not found');
+      return res.status(404).json({ success: false, message: 'Version not found' });
+    }
     
-    // Emit initial progress
-    io.emit('updateProgress', {
-      id: updateId,
-      ...global.updateProgress[updateId]
+    const versionResponse = await fetch(versionInfo.url);
+    const versionData = await versionResponse.json();
+    const serverUrl = versionData.downloads.server.url;
+    
+    // Download the server JAR with progress tracking
+    const filePath = path.join(__dirname, 'minecraft-server', filename);
+    const file = fs.createWriteStream(filePath);
+    
+    let downloadedBytes = 0;
+    let totalBytes = 0;
+    let lastUpdate = Date.now();
+    
+    const downloadResponse = await fetch(serverUrl);
+    totalBytes = parseInt(downloadResponse.headers.get('content-length') || '0');
+    
+    downloadResponse.body.on('data', (chunk) => {
+      downloadedBytes += chunk.length;
+      const now = Date.now();
+      
+      // Update progress every 100ms
+      if (now - lastUpdate > 100) {
+        const speed = downloadedBytes / ((now - download.startTime) / 1000); // bytes per second
+        updateDownloadProgress(downloadId, downloadedBytes, totalBytes, 'downloading');
+        lastUpdate = now;
+      }
     });
     
-    // Function to update progress
-    const updateProgress = (status, message, progress) => {
-      global.updateProgress[updateId] = { status, message, progress };
-      io.emit('updateProgress', {
-        id: updateId,
-        ...global.updateProgress[updateId]
-      });
-    };
+    downloadResponse.body.pipe(file);
     
-    // Step 1: Check if git is available
-    updateProgress('checking', 'Checking if git is available...', 10);
+    file.on('finish', () => {
+      completeDownload(downloadId, true);
+      res.json({ success: true, message: `Successfully downloaded ${filename}`, downloadId });
+    });
     
-    exec('git --version', (error) => {
-      if (error) {
-        updateProgress('error', 'Git is not installed. Please install git to update MCServ.', 0);
-        return res.status(500).json({ 
-          success: false, 
-          message: 'Git is not installed. Please install git to update MCServ.' 
-        });
-      }
-      
-      // Step 2: Check if this is a git repository
-      updateProgress('checking', 'Checking if this is a git repository...', 20);
-      
-      exec('git status', { cwd: currentDir }, (error) => {
-        if (error) {
-          updateProgress('error', 'This is not a git repository. Please clone MCServ from GitHub to enable updates.', 0);
-          return res.status(500).json({ 
-            success: false, 
-            message: 'This is not a git repository. Please clone MCServ from GitHub to enable updates.' 
-          });
-        }
-        
-        // Step 3: Fetch latest changes
-        updateProgress('fetching', 'Fetching latest changes from GitHub...', 30);
-        
-        exec('git fetch origin', { cwd: currentDir }, (error) => {
-          if (error) {
-            updateProgress('error', 'Failed to fetch updates from GitHub. Check your internet connection.', 0);
-            return res.status(500).json({ 
-              success: false, 
-              message: 'Failed to fetch updates from GitHub. Check your internet connection.' 
-            });
-          }
-          
-          // Step 4: Check if there are updates
-          updateProgress('checking', 'Checking for available updates...', 50);
-          
-          exec('git log HEAD..origin/main --oneline', { cwd: currentDir }, (error, stdout) => {
-            if (error || !stdout.trim()) {
-              updateProgress('completed', 'MCServ is already up to date!', 100);
-              return res.json({ 
-                success: true, 
-                message: 'MCServ is already up to date!',
-                updateId 
-              });
-            }
-            
-            // Step 5: Pull latest changes
-            updateProgress('downloading', 'Downloading latest MCServ code...', 70);
-            
-            exec('git pull origin main', { cwd: currentDir }, (error, stdout) => {
-              if (error) {
-                updateProgress('error', 'Failed to update MCServ. Please try again.', 0);
-                return res.status(500).json({ 
-                  success: false, 
-                  message: 'Failed to update MCServ. Please try again.' 
-                });
-              }
-              
-              // Step 6: Install dependencies if package.json changed
-              updateProgress('installing', 'Installing updated dependencies...', 85);
-              
-              exec('npm install', { cwd: currentDir }, (error) => {
-                if (error) {
-                  updateProgress('warning', 'Update completed but failed to install dependencies. You may need to run "npm install" manually.', 95);
-                } else {
-                  updateProgress('completed', 'MCServ updated successfully! Restart the server to apply changes.', 100);
-                }
-                
-                // Clean up after 30 seconds
-                setTimeout(() => {
-                  delete global.updateProgress[updateId];
-                }, 30000);
-                
-                res.json({ 
-                  success: true, 
-                  message: 'MCServ updated successfully! Restart the server to apply changes.',
-                  updateId,
-                  needsRestart: true
-                });
-              });
-            });
-          });
-        });
-      });
+    file.on('error', (err) => {
+      fs.unlink(filePath, () => {});
+      completeDownload(downloadId, false, err.message);
+      res.status(500).json({ success: false, message: 'Failed to download server' });
     });
     
   } catch (error) {
-    console.error('Update error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update MCServ' 
-    });
+    console.error('Server download error:', error);
+    res.status(500).json({ success: false, message: 'Failed to download server' });
   }
 });
 
@@ -448,11 +456,16 @@ app.post('/api/transfer-hosting', (req, res) => {
 app.post('/api/download-mod', async (req, res) => {
   const { url, filename, modName } = req.body;
   
-  if (!url || !filename) {
-    return res.status(400).json({ success: false, message: 'URL and filename are required' });
+  if (!url || !filename || !modName) {
+    return res.status(400).json({ success: false, message: 'URL, filename, and modName are required' });
   }
   
   try {
+    const downloadId = createDownloadId();
+    
+    // Start download tracking
+    startDownload(downloadId, 'mod', filename);
+    
     const https = require('https');
     const fs = require('fs');
     
@@ -462,88 +475,39 @@ app.post('/api/download-mod', async (req, res) => {
     
     const filePath = path.join(modsDir, filename);
     
-    // Create a unique download ID for tracking
-    const downloadId = `mod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Initialize download progress
-    global.downloadProgress = global.downloadProgress || {};
-    global.downloadProgress[downloadId] = {
-      type: 'mod',
-      name: modName,
-      filename: filename,
-      progress: 0,
-      status: 'starting',
-      totalSize: 0,
-      downloadedSize: 0,
-      speed: 0,
-      eta: 0,
-      startTime: Date.now()
-    };
-    
     // Download the file with progress tracking
     const file = fs.createWriteStream(filePath);
     
+    let downloadedBytes = 0;
+    let totalBytes = 0;
+    let lastUpdate = Date.now();
+    
     https.get(url, (response) => {
-      const totalSize = parseInt(response.headers['content-length'], 10);
-      global.downloadProgress[downloadId].totalSize = totalSize;
-      global.downloadProgress[downloadId].status = 'downloading';
-      
-      let downloadedSize = 0;
-      const startTime = Date.now();
+      totalBytes = parseInt(response.headers['content-length'] || '0');
       
       response.on('data', (chunk) => {
-        downloadedSize += chunk.length;
-        const progress = Math.round((downloadedSize / totalSize) * 100);
-        const elapsed = (Date.now() - startTime) / 1000;
-        const speed = downloadedSize / elapsed;
-        const eta = totalSize > downloadedSize ? (totalSize - downloadedSize) / speed : 0;
+        downloadedBytes += chunk.length;
+        const now = Date.now();
         
-        global.downloadProgress[downloadId] = {
-          ...global.downloadProgress[downloadId],
-          progress,
-          downloadedSize,
-          speed,
-          eta
-        };
-        
-        // Emit progress to all connected clients
-        io.emit('downloadProgress', {
-          id: downloadId,
-          ...global.downloadProgress[downloadId]
-        });
+        // Update progress every 100ms
+        if (now - lastUpdate > 100) {
+          updateDownloadProgress(downloadId, downloadedBytes, totalBytes, 'downloading');
+          lastUpdate = now;
+        }
       });
       
       response.pipe(file);
       
       file.on('finish', () => {
         file.close();
-        global.downloadProgress[downloadId].status = 'completed';
-        global.downloadProgress[downloadId].progress = 100;
-        
-        io.emit('downloadProgress', {
-          id: downloadId,
-          ...global.downloadProgress[downloadId]
-        });
-        
-        // Clean up after 30 seconds
-        setTimeout(() => {
-          delete global.downloadProgress[downloadId];
-        }, 30000);
-        
         console.log(`Downloaded mod: ${modName} (${filename})`);
+        completeDownload(downloadId, true);
         res.json({ success: true, message: `Successfully downloaded ${modName}`, downloadId });
       });
     }).on('error', (err) => {
       fs.unlink(filePath, () => {}); // Delete the file if download failed
-      global.downloadProgress[downloadId].status = 'error';
-      global.downloadProgress[downloadId].error = err.message;
-      
-      io.emit('downloadProgress', {
-        id: downloadId,
-        ...global.downloadProgress[downloadId]
-      });
-      
       console.error('Download error:', err);
+      completeDownload(downloadId, false, err.message);
       res.status(500).json({ success: false, message: 'Failed to download mod' });
     });
     
@@ -608,129 +572,6 @@ app.get('/api/connection-test', (req, res) => {
   });
   
   testSocket.connect(25565, 'localhost');
-});
-
-app.post('/api/download-server', async (req, res) => {
-  const { version } = req.body;
-  
-  if (!version) {
-    return res.status(400).json({ success: false, message: 'Version is required' });
-  }
-  
-  try {
-    const https = require('https');
-    const fs = require('fs');
-    
-    // Get the download URL for the specified version
-    const versionUrl = `https://piston-meta.mojang.com/v1/packages/24b08e167c6611f7ad895ae1e8b5258f819184aa/${version}.json`;
-    
-    const versionData = await new Promise((resolve, reject) => {
-      https.get(versionUrl, (response) => {
-        let data = '';
-        response.on('data', chunk => data += chunk);
-        response.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }).on('error', reject);
-    });
-    
-    const downloadUrl = versionData.downloads.server.url;
-    const filename = `server-${version}.jar`;
-    const filePath = path.join(__dirname, 'minecraft-server', filename);
-    
-    // Create a unique download ID for tracking
-    const downloadId = `server_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Initialize download progress
-    global.downloadProgress = global.downloadProgress || {};
-    global.downloadProgress[downloadId] = {
-      type: 'server',
-      name: `Minecraft Server ${version}`,
-      filename: filename,
-      progress: 0,
-      status: 'starting',
-      totalSize: 0,
-      downloadedSize: 0,
-      speed: 0,
-      eta: 0,
-      startTime: Date.now()
-    };
-    
-    // Download the file with progress tracking
-    const file = fs.createWriteStream(filePath);
-    
-    https.get(downloadUrl, (response) => {
-      const totalSize = parseInt(response.headers['content-length'], 10);
-      global.downloadProgress[downloadId].totalSize = totalSize;
-      global.downloadProgress[downloadId].status = 'downloading';
-      
-      let downloadedSize = 0;
-      const startTime = Date.now();
-      
-      response.on('data', (chunk) => {
-        downloadedSize += chunk.length;
-        const progress = Math.round((downloadedSize / totalSize) * 100);
-        const elapsed = (Date.now() - startTime) / 1000;
-        const speed = downloadedSize / elapsed;
-        const eta = totalSize > downloadedSize ? (totalSize - downloadedSize) / speed : 0;
-        
-        global.downloadProgress[downloadId] = {
-          ...global.downloadProgress[downloadId],
-          progress,
-          downloadedSize,
-          speed,
-          eta
-        };
-        
-        // Emit progress to all connected clients
-        io.emit('downloadProgress', {
-          id: downloadId,
-          ...global.downloadProgress[downloadId]
-        });
-      });
-      
-      response.pipe(file);
-      
-      file.on('finish', () => {
-        file.close();
-        global.downloadProgress[downloadId].status = 'completed';
-        global.downloadProgress[downloadId].progress = 100;
-        
-        io.emit('downloadProgress', {
-          id: downloadId,
-          ...global.downloadProgress[downloadId]
-        });
-        
-        // Clean up after 30 seconds
-        setTimeout(() => {
-          delete global.downloadProgress[downloadId];
-        }, 30000);
-        
-        console.log(`Downloaded server: ${version} (${filename})`);
-        res.json({ success: true, message: `Successfully downloaded Minecraft Server ${version}`, downloadId });
-      });
-    }).on('error', (err) => {
-      fs.unlink(filePath, () => {}); // Delete the file if download failed
-      global.downloadProgress[downloadId].status = 'error';
-      global.downloadProgress[downloadId].error = err.message;
-      
-      io.emit('downloadProgress', {
-        id: downloadId,
-        ...global.downloadProgress[downloadId]
-      });
-      
-      console.error('Download error:', err);
-      res.status(500).json({ success: false, message: 'Failed to download server' });
-    });
-    
-  } catch (error) {
-    console.error('Server download error:', error);
-    res.status(500).json({ success: false, message: 'Failed to download server' });
-  }
 });
 
 // Socket.IO event handlers

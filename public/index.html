@@ -122,51 +122,6 @@
         .minecraft-button-secondary { @apply px-4 py-2 bg-minecraft-light-gray text-white font-medium rounded hover:bg-gray-500 transition-colors duration-200; }
         .minecraft-button-danger { @apply px-4 py-2 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition-colors duration-200; }
         
-        /* Download progress styles */
-        .download-item {
-            @apply bg-minecraft-dark border border-minecraft-light-gray rounded-lg p-3;
-        }
-        .download-progress-bar {
-            @apply w-full bg-minecraft-light-gray rounded-full h-2 mt-2;
-        }
-        .download-progress-fill {
-            @apply bg-minecraft-green h-2 rounded-full transition-all duration-300 ease-out;
-        }
-        .download-status {
-            @apply text-xs font-medium;
-        }
-        .download-status.downloading { @apply text-blue-400; }
-        .download-status.completed { @apply text-green-400; }
-        .download-status.error { @apply text-red-400; }
-        .download-status.starting { @apply text-yellow-400; }
-        
-        /* Activity card styles */
-        .activity-card {
-            @apply bg-minecraft-gray border border-minecraft-light-gray rounded-lg p-3 hover:border-minecraft-green transition-all duration-200;
-            animation: slideIn 0.3s ease-out;
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .activity-icon {
-            @apply w-8 h-8 rounded-full bg-minecraft-green flex items-center justify-center text-black text-sm font-bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        
-        .status-badge {
-            @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
-        
         /* Toast notifications */
         .toast-container {
             position: fixed;
@@ -208,11 +163,54 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+        
+        /* Download progress styles */
+        .download-progress {
+            background: #1a1a1a;
+            border: 1px solid #404040;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+        }
+        .download-progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #404040;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        .download-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #55ff55, #4CAF50);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .download-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #ccc;
+        }
+        .download-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .download-status.downloading { background: #2196F3; color: white; }
+        .download-status.completed { background: #4CAF50; color: white; }
+        .download-status.failed { background: #f44336; color: white; }
+        .download-status.starting { background: #FF9800; color: white; }
     </style>
 </head>
 <body class="minecraft-dark text-white min-h-screen">
     <!-- Toast Container -->
     <div id="toastContainer" class="toast-container"></div>
+    
+    <!-- Download Progress Container -->
+    <div id="downloadProgressContainer" class="fixed top-20 left-4 z-50 max-w-md"></div>
 
     <!-- Header -->
     <header class="bg-minecraft-gray border-b-2 border-minecraft-light-gray p-4">
@@ -277,11 +275,6 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Download Progress Container -->
-            <div id="downloadProgressContainer" class="mt-3 space-y-2">
-                <!-- Download progress items will be added here dynamically -->
-            </div>
         </div>
     </header>
 
@@ -302,7 +295,7 @@
                     <span class="mr-2">💾</span>Backups
                 </button>
                 <button id="tab-logs" class="tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200">
-                    <span class="mr-2">📋</span>Server Activity
+                    <span class="mr-2">📋</span>Server Logs
                 </button>
             </div>
         </div>
@@ -414,6 +407,9 @@
                                     <button id="startServer" class="minecraft-button w-full">
                                         Start Server
                                     </button>
+                                    <button id="downloadServer" class="minecraft-button-secondary w-full">
+                                        📥 Download Server JAR
+                                    </button>
                                 </div>
                             </div>
 
@@ -433,91 +429,6 @@
                                                 Transfer
                                             </button>
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Server Download -->
-                            <div class="space-y-3">
-                                <h3 class="text-lg font-semibold text-white">Download Server</h3>
-                                <div class="space-y-2">
-                                    <div>
-                                        <label class="text-sm text-gray-300">Download Version:</label>
-                                        <select id="downloadVersion" class="minecraft-input w-full mt-1">
-                                            <option value="1.21.8" selected>1.21.8 (Latest)</option>
-                                            <option value="1.21.7">1.21.7</option>
-                                            <option value="1.21.6">1.21.6</option>
-                                            <option value="1.21.5">1.21.5</option>
-                                            <option value="1.21.4">1.21.4</option>
-                                            <option value="1.21.3">1.21.3</option>
-                                            <option value="1.21.2">1.21.2</option>
-                                            <option value="1.21.1">1.21.1</option>
-                                            <option value="1.21.0">1.21.0</option>
-                                            <option value="1.20.6">1.20.6</option>
-                                            <option value="1.20.5">1.20.5</option>
-                                            <option value="1.20.4">1.20.4</option>
-                                            <option value="1.20.3">1.20.3</option>
-                                            <option value="1.20.2">1.20.2</option>
-                                            <option value="1.20.1">1.20.1</option>
-                                            <option value="1.20.0">1.20.0</option>
-                                            <option value="1.19.4">1.19.4</option>
-                                            <option value="1.19.3">1.19.3</option>
-                                            <option value="1.19.2">1.19.2</option>
-                                            <option value="1.19.1">1.19.1</option>
-                                            <option value="1.19.0">1.19.0</option>
-                                            <option value="1.18.2">1.18.2</option>
-                                            <option value="1.18.1">1.18.1</option>
-                                            <option value="1.18.0">1.18.0</option>
-                                            <option value="1.17.1">1.17.1</option>
-                                            <option value="1.17.0">1.17.0</option>
-                                            <option value="1.16.5">1.16.5</option>
-                                            <option value="1.16.4">1.16.4</option>
-                                            <option value="1.16.3">1.16.3</option>
-                                            <option value="1.16.2">1.16.2</option>
-                                            <option value="1.16.1">1.16.1</option>
-                                            <option value="1.16.0">1.16.0</option>
-                                            <option value="1.15.2">1.15.2</option>
-                                            <option value="1.15.1">1.15.1</option>
-                                            <option value="1.15.0">1.15.0</option>
-                                            <option value="1.14.4">1.14.4</option>
-                                            <option value="1.14.3">1.14.3</option>
-                                            <option value="1.14.2">1.14.2</option>
-                                            <option value="1.14.1">1.14.1</option>
-                                            <option value="1.14.0">1.14.0</option>
-                                            <option value="1.13.2">1.13.2</option>
-                                            <option value="1.13.1">1.13.1</option>
-                                            <option value="1.13.0">1.13.0</option>
-                                            <option value="1.12.2">1.12.2</option>
-                                            <option value="1.12.1">1.12.1</option>
-                                            <option value="1.12.0">1.12.0</option>
-                                            <option value="1.11.2">1.11.2</option>
-                                            <option value="1.11.1">1.11.1</option>
-                                            <option value="1.11.0">1.11.0</option>
-                                            <option value="1.10.2">1.10.2</option>
-                                            <option value="1.10.1">1.10.1</option>
-                                            <option value="1.10.0">1.10.0</option>
-                                            <option value="1.9.4">1.9.4</option>
-                                            <option value="1.9.3">1.9.3</option>
-                                            <option value="1.9.2">1.9.2</option>
-                                            <option value="1.9.1">1.9.1</option>
-                                            <option value="1.9.0">1.9.0</option>
-                                            <option value="1.8.9">1.8.9</option>
-                                            <option value="1.8.8">1.8.8</option>
-                                            <option value="1.8.7">1.8.7</option>
-                                            <option value="1.8.6">1.8.6</option>
-                                            <option value="1.8.5">1.8.5</option>
-                                            <option value="1.8.4">1.8.4</option>
-                                            <option value="1.8.3">1.8.3</option>
-                                            <option value="1.8.2">1.8.2</option>
-                                            <option value="1.8.1">1.8.1</option>
-                                            <option value="1.8.0">1.8.0</option>
-                                        </select>
-                                    </div>
-                                    <button id="downloadServer" class="minecraft-button w-full">
-                                        📥 Download Server
-                                    </button>
-                                    <div class="text-xs text-gray-400">
-                                        Downloads the official Minecraft server JAR for the selected version
                                     </div>
                                 </div>
                             </div>
@@ -824,60 +735,6 @@
                             Save Settings
                         </button>
                     </div>
-                    
-                    <!-- MCServ Updates -->
-                    <div class="minecraft-card">
-                        <h2 class="text-xl font-bold text-minecraft-green mb-4 flex items-center">
-                            🔄 MCServ Updates
-                        </h2>
-                        <div class="space-y-4">
-                            <div class="p-4 bg-minecraft-gray rounded border border-minecraft-light-gray">
-                                <div class="flex items-center justify-between mb-3">
-                                    <div>
-                                        <h3 class="text-lg font-semibold text-white">Current Version</h3>
-                                        <p class="text-sm text-gray-400">MCServ v1.0.0</p>
-                                    </div>
-                                    <div class="text-right">
-                                        <div class="text-xs text-gray-500">Last checked</div>
-                                        <div class="text-xs text-gray-400" id="lastUpdateCheck">Never</div>
-                                    </div>
-                                </div>
-                                
-                                <div class="flex space-x-2">
-                                    <button id="checkForUpdates" class="minecraft-button">
-                                        🔍 Check for Updates
-                                    </button>
-                                    <button id="updateMCServ" class="minecraft-button-secondary" disabled>
-                                        🔄 Update MCServ
-                                    </button>
-                                </div>
-                                
-                                <div class="mt-3 text-xs text-gray-400">
-                                    💡 Updates are downloaded directly from GitHub and applied automatically
-                                </div>
-                            </div>
-                            
-                            <!-- Update Progress -->
-                            <div id="updateProgressContainer" class="hidden">
-                                <h3 class="text-lg font-semibold text-white mb-3">Update Progress</h3>
-                                <div id="updateProgressCard" class="bg-minecraft-gray border border-minecraft-light-gray rounded-lg p-4">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <div class="flex items-center">
-                                            <span class="text-blue-300 mr-2">🔄</span>
-                                            <span class="text-sm text-blue-200" id="updateStatus">Starting update...</span>
-                                        </div>
-                                        <span class="text-xs text-gray-400" id="updateProgress">0%</span>
-                                    </div>
-                                    <div class="w-full bg-minecraft-light-gray rounded-full h-2">
-                                        <div id="updateProgressBar" class="bg-minecraft-green h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                                    </div>
-                                    <div class="mt-2 text-xs text-gray-400" id="updateMessage">
-                                        Checking for updates...
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Backups Tab -->
@@ -907,36 +764,14 @@
                     </div>
                 </div>
 
-                <!-- Server Activity Tab -->
+                <!-- Server Logs Tab -->
                 <div id="content-logs" class="space-y-6 hidden">
                     <div class="minecraft-card">
                         <h2 class="text-xl font-bold text-minecraft-green mb-4 flex items-center">
-                            📋 Server Activity
+                            📋 Server Logs
                         </h2>
-                        <div class="space-y-4">
-                            <!-- Activity Controls -->
-                            <div class="flex space-x-2">
-                                <button id="refreshLogs" class="minecraft-button">
-                                    🔄 Refresh Activity
-                                </button>
-                                <button id="clearLogs" class="minecraft-button-secondary">
-                                    🗑️ Clear Display
-                                </button>
-                                <button id="autoScroll" class="minecraft-button-secondary">
-                                    📜 Auto-scroll: ON
-                                </button>
-                            </div>
-                            
-                            <!-- Activity Display -->
-                            <div id="serverLogs" class="bg-gradient-to-b from-gray-900 to-black border border-minecraft-light-gray rounded-lg p-4 h-96 overflow-y-auto">
-                                <div id="logContent" class="space-y-2">
-                                    <div class="text-center text-gray-500 py-8">
-                                        <div class="text-4xl mb-2">🎮</div>
-                                        <div class="text-lg font-medium">Welcome to MCServ!</div>
-                                        <div class="text-sm">Server activity will appear here when you start your Minecraft server</div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div id="serverLogs" class="bg-black p-3 rounded text-sm font-mono h-96 overflow-y-auto">
+                            <div class="text-gray-500">Waiting for server logs...</div>
                         </div>
                     </div>
                 </div>
@@ -1055,168 +890,14 @@
             }
         }
 
-        // Add beautiful activity message
+        // Add log message
         function addLogMessage(message) {
             const logsElement = document.getElementById('serverLogs');
-            const logContent = document.getElementById('logContent');
-            
-            // Remove welcome message if it exists
-            const welcomeMessage = logContent.querySelector('.text-center');
-            if (welcomeMessage) {
-                welcomeMessage.remove();
-            }
-            
-            // Create beautiful activity card
-            const activityCard = document.createElement('div');
-            activityCard.className = 'activity-card';
-            
-            // Parse the message to make it user-friendly
-            const friendlyMessage = parseActivityMessage(message);
-            
-            activityCard.innerHTML = `
-                <div class="flex items-start space-x-3">
-                    <div class="flex-shrink-0">
-                        <div class="activity-icon">
-                            ${friendlyMessage.icon}
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium text-white">
-                            ${friendlyMessage.title}
-                        </div>
-                        <div class="text-xs text-gray-400 mt-1">
-                            ${friendlyMessage.description}
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1">
-                            ${new Date().toLocaleTimeString()}
-                        </div>
-                    </div>
-                    ${friendlyMessage.status ? `
-                        <div class="flex-shrink-0">
-                            <span class="status-badge ${friendlyMessage.status.class}">
-                                ${friendlyMessage.status.text}
-                            </span>
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-            
-            logContent.appendChild(activityCard);
+            const logEntry = document.createElement('div');
+            logEntry.className = 'text-gray-300 mb-1';
+            logEntry.textContent = message;
+            logsElement.appendChild(logEntry);
             logsElement.scrollTop = logsElement.scrollHeight;
-        }
-
-        // Parse technical messages into user-friendly activity descriptions
-        function parseActivityMessage(message) {
-            const lowerMessage = message.toLowerCase();
-            
-            // Server startup messages
-            if (lowerMessage.includes('starting') && lowerMessage.includes('server')) {
-                return {
-                    icon: '🚀',
-                    title: 'Server Starting',
-                    description: 'Your Minecraft server is starting up...',
-                    status: { text: 'Starting', class: 'bg-yellow-100 text-yellow-800' }
-                };
-            }
-            
-            if (lowerMessage.includes('done') && lowerMessage.includes('for help')) {
-                return {
-                    icon: '✅',
-                    title: 'Server Ready!',
-                    description: 'Your Minecraft server is now running and ready for players!',
-                    status: { text: 'Online', class: 'bg-green-100 text-green-800' }
-                };
-            }
-            
-            if (lowerMessage.includes('stopping')) {
-                return {
-                    icon: '🛑',
-                    title: 'Server Stopping',
-                    description: 'Your Minecraft server is shutting down...',
-                    status: { text: 'Stopping', class: 'bg-red-100 text-red-800' }
-                };
-            }
-            
-            // Player join/leave messages
-            if (lowerMessage.includes('joined the game')) {
-                const playerName = extractPlayerName(message);
-                return {
-                    icon: '👋',
-                    title: 'Player Joined',
-                    description: `${playerName} joined your server!`,
-                    status: { text: 'Join', class: 'bg-blue-100 text-blue-800' }
-                };
-            }
-            
-            if (lowerMessage.includes('left the game')) {
-                const playerName = extractPlayerName(message);
-                return {
-                    icon: '👋',
-                    title: 'Player Left',
-                    description: `${playerName} left your server.`,
-                    status: { text: 'Leave', class: 'bg-gray-100 text-gray-800' }
-                };
-            }
-            
-            // Chat messages
-            if (lowerMessage.includes('<') && lowerMessage.includes('>')) {
-                const chatInfo = extractChatMessage(message);
-                return {
-                    icon: '💬',
-                    title: 'Chat Message',
-                    description: `${chatInfo.player}: ${chatInfo.message}`,
-                    status: { text: 'Chat', class: 'bg-purple-100 text-purple-800' }
-                };
-            }
-            
-            // World generation
-            if (lowerMessage.includes('generating') || lowerMessage.includes('spawn')) {
-                return {
-                    icon: '🌍',
-                    title: 'World Generation',
-                    description: 'Creating your Minecraft world...',
-                    status: { text: 'Generating', class: 'bg-indigo-100 text-indigo-800' }
-                };
-            }
-            
-            // Error messages (made friendly)
-            if (lowerMessage.includes('error') || lowerMessage.includes('exception')) {
-                return {
-                    icon: '⚠️',
-                    title: 'Server Notice',
-                    description: 'The server encountered a minor issue. This is usually nothing to worry about!',
-                    status: { text: 'Notice', class: 'bg-orange-100 text-orange-800' }
-                };
-            }
-            
-            // Default for other messages
-            return {
-                icon: 'ℹ️',
-                title: 'Server Activity',
-                description: message.length > 100 ? message.substring(0, 100) + '...' : message,
-                status: { text: 'Info', class: 'bg-gray-100 text-gray-800' }
-            };
-        }
-
-        // Extract player name from messages
-        function extractPlayerName(message) {
-            const match = message.match(/(\w+)/);
-            return match ? match[1] : 'Unknown Player';
-        }
-
-        // Extract chat message
-        function extractChatMessage(message) {
-            const match = message.match(/<(\w+)> (.+)/);
-            if (match) {
-                return {
-                    player: match[1],
-                    message: match[2]
-                };
-            }
-            return {
-                player: 'Unknown',
-                message: message
-            };
         }
 
         // Tab switching
@@ -1263,11 +944,7 @@
         });
 
         socket.on('serverOutput', (data) => {
-            // Only show user-friendly messages, filter out technical noise
-            const message = data.output.trim();
-            if (message && !message.includes('[Server]') && !message.includes('INFO')) {
-                addLogMessage(message);
-            }
+            addLogMessage(data.output);
         });
 
         socket.on('userList', (data) => {
@@ -1369,6 +1046,8 @@
                 showToast('Please enter a username to start the server', 'error');
             }
         });
+
+        document.getElementById('downloadServer').addEventListener('click', downloadServer);
 
         document.getElementById('stopServer').addEventListener('click', async () => {
             try {
@@ -1660,6 +1339,8 @@
 
         async function downloadMod(projectId, modName) {
             try {
+                showToast(`Downloading ${modName}...`, 'info');
+                
                 // Get latest version for the selected loader and version
                 const version = document.getElementById('modVersion').value;
                 const loader = document.getElementById('modLoader').value;
@@ -1684,7 +1365,7 @@
                     return;
                 }
                 
-                // Download the mod with progress tracking
+                // Download the mod
                 const downloadResponse = await fetch(`/api/download-mod`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1697,8 +1378,7 @@
                 
                 const result = await downloadResponse.json();
                 if (result.success) {
-                    // Progress will be shown via Socket.IO events
-                    showToast(`Started downloading ${modName}`, 'info');
+                    showToast(`Successfully downloaded ${modName}`, 'success');
                 } else {
                     showToast(result.message || 'Failed to download mod', 'error');
                 }
@@ -1735,174 +1415,6 @@
                 console.error('Failed to fetch logs:', error);
                 showToast('Failed to fetch server logs', 'error');
             });
-
-        // Download server button
-        document.getElementById('downloadServer').addEventListener('click', async () => {
-            const version = document.getElementById('downloadVersion').value;
-            const button = document.getElementById('downloadServer');
-            
-            try {
-                button.disabled = true;
-                button.textContent = '📥 Downloading...';
-                
-                const response = await fetch('/api/download-server', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ version })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    // Progress will be shown via Socket.IO events
-                    showToast(`Started downloading Minecraft Server ${version}`, 'info');
-                } else {
-                    showToast(result.message || 'Failed to download server', 'error');
-                }
-                
-            } catch (error) {
-                console.error('Server download error:', error);
-                showToast('Failed to download server', 'error');
-            } finally {
-                button.disabled = false;
-                button.textContent = '📥 Download Server';
-            }
-        });
-
-        // Activity controls
-        document.getElementById('refreshLogs').addEventListener('click', () => {
-            addLogMessage('🔄 Activity refreshed manually');
-            showToast('Activity refreshed!', 'info');
-        });
-
-        document.getElementById('clearLogs').addEventListener('click', () => {
-            const logContent = document.getElementById('logContent');
-            logContent.innerHTML = `
-                <div class="text-center text-gray-500 py-8">
-                    <div class="text-4xl mb-2">🎮</div>
-                    <div class="text-lg font-medium">Activity Cleared</div>
-                    <div class="text-sm">New server activity will appear here</div>
-                </div>
-            `;
-            showToast('Activity display cleared!', 'info');
-        });
-
-        let autoScrollEnabled = true;
-        document.getElementById('autoScroll').addEventListener('click', () => {
-            autoScrollEnabled = !autoScrollEnabled;
-            const button = document.getElementById('autoScroll');
-            button.textContent = `📜 Auto-scroll: ${autoScrollEnabled ? 'ON' : 'OFF'}`;
-            showToast(`Auto-scroll ${autoScrollEnabled ? 'enabled' : 'disabled'}!`, 'info');
-        });
-
-        // Download progress system
-        let activeDownloads = new Map();
-
-        // Listen for download progress updates from server
-        socket.on('downloadProgress', (data) => {
-            updateDownloadProgress(data);
-        });
-
-        function updateDownloadProgress(data) {
-            const { id, type, name, filename, progress, status, totalSize, downloadedSize, speed, eta } = data;
-            
-            // Store download info
-            activeDownloads.set(id, data);
-            
-            // Find or create download progress element
-            let downloadElement = document.getElementById(`download-${id}`);
-            if (!downloadElement) {
-                downloadElement = createDownloadElement(id, data);
-                document.getElementById('downloadProgressContainer').appendChild(downloadElement);
-            }
-            
-            // Update progress bar
-            const progressFill = downloadElement.querySelector('.download-progress-fill');
-            const progressText = downloadElement.querySelector('.download-progress-text');
-            const statusElement = downloadElement.querySelector('.download-status');
-            const speedElement = downloadElement.querySelector('.download-speed');
-            const etaElement = downloadElement.querySelector('.download-eta');
-            
-            progressFill.style.width = `${progress}%`;
-            progressText.textContent = `${progress}%`;
-            statusElement.textContent = status.charAt(0).toUpperCase() + status.slice(1);
-            statusElement.className = `download-status ${status}`;
-            
-            // Update speed and ETA
-            if (speed > 0) {
-                const speedMBps = (speed / 1024 / 1024).toFixed(2);
-                speedElement.textContent = `${speedMBps} MB/s`;
-                
-                if (eta > 0) {
-                    const etaMinutes = Math.floor(eta / 60);
-                    const etaSeconds = Math.floor(eta % 60);
-                    etaElement.textContent = etaMinutes > 0 ? `${etaMinutes}m ${etaSeconds}s` : `${etaSeconds}s`;
-                } else {
-                    etaElement.textContent = 'Calculating...';
-                }
-            }
-            
-            // Update file size
-            if (totalSize > 0) {
-                const totalMB = (totalSize / 1024 / 1024).toFixed(2);
-                const downloadedMB = (downloadedSize / 1024 / 1024).toFixed(2);
-                downloadElement.querySelector('.download-size').textContent = `${downloadedMB} MB / ${totalMB} MB`;
-            }
-            
-            // Handle completion
-            if (status === 'completed') {
-                setTimeout(() => {
-                    downloadElement.style.opacity = '0.5';
-                    setTimeout(() => {
-                        downloadElement.remove();
-                        activeDownloads.delete(id);
-                    }, 3000);
-                }, 2000);
-            }
-            
-            // Handle errors
-            if (status === 'error') {
-                downloadElement.style.borderColor = '#ef4444';
-                downloadElement.querySelector('.download-error').textContent = data.error || 'Download failed';
-                downloadElement.querySelector('.download-error').classList.remove('hidden');
-            }
-        }
-
-        function createDownloadElement(id, data) {
-            const { type, name, filename, status } = data;
-            const icon = type === 'server' ? '🎮' : '📦';
-            
-            const downloadElement = document.createElement('div');
-            downloadElement.id = `download-${id}`;
-            downloadElement.className = 'download-item';
-            downloadElement.innerHTML = `
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center">
-                        <span class="mr-2">${icon}</span>
-                        <div>
-                            <div class="text-sm font-medium text-white">${name}</div>
-                            <div class="text-xs text-gray-400">${filename}</div>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <div class="download-status ${status}">${status.charAt(0).toUpperCase() + status.slice(1)}</div>
-                        <div class="text-xs text-gray-400 download-progress-text">0%</div>
-                    </div>
-                </div>
-                <div class="download-progress-bar">
-                    <div class="download-progress-fill" style="width: 0%"></div>
-                </div>
-                <div class="flex justify-between items-center mt-2 text-xs text-gray-400">
-                    <span class="download-size">0 MB / 0 MB</span>
-                    <div class="flex items-center space-x-4">
-                        <span class="download-speed">0 MB/s</span>
-                        <span class="download-eta">Calculating...</span>
-                    </div>
-                </div>
-                <div class="download-error hidden text-xs text-red-400 mt-1"></div>
-            `;
-            
-            return downloadElement;
-        }
 
         // Auto-update notification system
         let currentUpdateInfo = null;
@@ -1976,118 +1488,206 @@
             }
         }, 3000); // Check 3 seconds after page load
 
-        // MCServ Update System
-        let updateAvailable = false;
+        // Download progress system
+        let activeDownloads = new Map();
 
-        // Check for updates button
-        document.getElementById('checkForUpdates').addEventListener('click', async () => {
-            const button = document.getElementById('checkForUpdates');
-            const updateButton = document.getElementById('updateMCServ');
-            
-            try {
-                button.disabled = true;
-                button.textContent = '🔍 Checking...';
-                
-                const response = await fetch('/api/check-updates');
-                const updateInfo = await response.json();
-                
-                // Update last check time
-                document.getElementById('lastUpdateCheck').textContent = new Date().toLocaleTimeString();
-                
-                if (updateInfo.available) {
-                    updateAvailable = true;
-                    updateButton.disabled = false;
-                    updateButton.textContent = `🔄 Update to ${updateInfo.version}`;
-                    showToast(`New version available: ${updateInfo.version}`, 'info');
-                } else {
-                    updateAvailable = false;
-                    updateButton.disabled = true;
-                    updateButton.textContent = '🔄 Update MCServ';
-                    showToast('MCServ is up to date!', 'success');
-                }
-                
-            } catch (error) {
-                console.error('Update check error:', error);
-                showToast('Failed to check for updates', 'error');
-            } finally {
-                button.disabled = false;
-                button.textContent = '🔍 Check for Updates';
-            }
+        // Listen for download events
+        socket.on('downloadStarted', (data) => {
+            createDownloadProgress(data.downloadId, data.type, data.filename);
         });
 
-        // Update MCServ button
-        document.getElementById('updateMCServ').addEventListener('click', async () => {
-            if (!updateAvailable) {
-                showToast('No updates available', 'info');
+        socket.on('downloadProgress', (data) => {
+            updateDownloadProgress(data.downloadId, data.progress, data.total, data.percentage, data.status);
+        });
+
+        socket.on('downloadCompleted', (data) => {
+            completeDownloadProgress(data.downloadId, data.success, data.error);
+        });
+
+        function createDownloadProgress(downloadId, type, filename) {
+            const container = document.getElementById('downloadProgressContainer');
+            const downloadDiv = document.createElement('div');
+            downloadDiv.id = `download-${downloadId}`;
+            downloadDiv.className = 'download-progress';
+            
+            const typeIcon = type === 'server' ? '🎮' : '📦';
+            const typeText = type === 'server' ? 'Server' : 'Mod';
+            
+            downloadDiv.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center">
+                        <span class="mr-2">${typeIcon}</span>
+                        <span class="font-medium">${typeText} Download</span>
+                    </div>
+                    <span class="download-status starting">Starting...</span>
+                </div>
+                <div class="text-sm text-gray-400 mb-2">${filename}</div>
+                <div class="download-progress-bar">
+                    <div class="download-progress-fill" style="width: 0%"></div>
+                </div>
+                <div class="download-info">
+                    <span class="progress-text">0%</span>
+                    <span class="speed-text">0 KB/s</span>
+                    <span class="size-text">0 MB / 0 MB</span>
+                </div>
+            `;
+            
+            container.appendChild(downloadDiv);
+            activeDownloads.set(downloadId, { type, filename, progress: 0, total: 0 });
+            
+            showToast(`${typeText} download started: ${filename}`, 'info');
+        }
+
+        function updateDownloadProgress(downloadId, progress, total, percentage, status) {
+            const downloadDiv = document.getElementById(`download-${downloadId}`);
+            if (!downloadDiv) return;
+            
+            const download = activeDownloads.get(downloadId);
+            if (download) {
+                download.progress = progress;
+                download.total = total;
+            }
+            
+            // Update progress bar
+            const progressFill = downloadDiv.querySelector('.download-progress-fill');
+            const progressText = downloadDiv.querySelector('.progress-text');
+            const sizeText = downloadDiv.querySelector('.size-text');
+            const statusSpan = downloadDiv.querySelector('.download-status');
+            
+            progressFill.style.width = `${percentage}%`;
+            progressText.textContent = `${percentage}%`;
+            
+            // Format file sizes
+            const progressMB = (progress / (1024 * 1024)).toFixed(1);
+            const totalMB = (total / (1024 * 1024)).toFixed(1);
+            sizeText.textContent = `${progressMB} MB / ${totalMB} MB`;
+            
+            // Update status
+            statusSpan.textContent = status === 'downloading' ? 'Downloading...' : status;
+            statusSpan.className = `download-status ${status}`;
+            
+            // Calculate and show speed
+            const speedText = downloadDiv.querySelector('.speed-text');
+            if (download && download.startTime) {
+                const elapsed = (Date.now() - download.startTime) / 1000;
+                const speed = progress / elapsed;
+                const speedKB = (speed / 1024).toFixed(1);
+                speedText.textContent = `${speedKB} KB/s`;
+            }
+        }
+
+        function completeDownloadProgress(downloadId, success, error) {
+            const downloadDiv = document.getElementById(`download-${downloadId}`);
+            if (!downloadDiv) return;
+            
+            const download = activeDownloads.get(downloadId);
+            const statusSpan = downloadDiv.querySelector('.download-status');
+            
+            if (success) {
+                statusSpan.textContent = 'Completed!';
+                statusSpan.className = 'download-status completed';
+                showToast(`Download completed: ${download?.filename}`, 'success');
+                
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    downloadDiv.remove();
+                    activeDownloads.delete(downloadId);
+                }, 3000);
+            } else {
+                statusSpan.textContent = 'Failed';
+                statusSpan.className = 'download-status failed';
+                showToast(`Download failed: ${error || 'Unknown error'}`, 'error');
+                
+                // Remove after 5 seconds
+                setTimeout(() => {
+                    downloadDiv.remove();
+                    activeDownloads.delete(downloadId);
+                }, 5000);
+            }
+        }
+
+        // Server download function
+        async function downloadServer() {
+            const version = document.getElementById('minecraftVersion').value;
+            if (!version) {
+                showToast('Please select a Minecraft version', 'error');
                 return;
             }
             
-            const button = document.getElementById('updateMCServ');
-            const progressContainer = document.getElementById('updateProgressContainer');
-            
             try {
-                button.disabled = true;
-                button.textContent = '🔄 Updating...';
-                progressContainer.classList.remove('hidden');
+                showToast(`Starting download of Minecraft ${version} server...`, 'info');
                 
-                const response = await fetch('/api/update-mcserv', {
+                const response = await fetch('/api/download-server', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version })
                 });
                 
                 const result = await response.json();
-                
                 if (result.success) {
-                    showToast(result.message, 'success');
-                    if (result.needsRestart) {
-                        showToast('Please restart MCServ to apply the update!', 'info');
-                    }
+                    showToast(`Download started for Minecraft ${version} server`, 'success');
                 } else {
-                    showToast(result.message || 'Failed to update MCServ', 'error');
+                    showToast(result.message || 'Failed to start download', 'error');
                 }
                 
             } catch (error) {
-                console.error('Update error:', error);
-                showToast('Failed to update MCServ', 'error');
-            } finally {
-                button.disabled = true;
-                button.textContent = '🔄 Update MCServ';
-                updateAvailable = false;
+                console.error('Server download error:', error);
+                showToast('Failed to start server download', 'error');
             }
-        });
+        }
 
-        // Listen for update progress
-        socket.on('updateProgress', (data) => {
-            const { status, message, progress } = data;
-            
-            const statusElement = document.getElementById('updateStatus');
-            const progressElement = document.getElementById('updateProgress');
-            const progressBar = document.getElementById('updateProgressBar');
-            const messageElement = document.getElementById('updateMessage');
-            
-            statusElement.textContent = message;
-            progressElement.textContent = `${progress}%`;
-            progressBar.style.width = `${progress}%`;
-            messageElement.textContent = message;
-            
-            // Update progress bar color based on status
-            if (status === 'completed') {
-                progressBar.className = 'bg-green-500 h-2 rounded-full transition-all duration-300';
-            } else if (status === 'error') {
-                progressBar.className = 'bg-red-500 h-2 rounded-full transition-all duration-300';
-            } else if (status === 'warning') {
-                progressBar.className = 'bg-yellow-500 h-2 rounded-full transition-all duration-300';
-            } else {
-                progressBar.className = 'bg-minecraft-green h-2 rounded-full transition-all duration-300';
+        // Update the downloadMod function to use the new progress system
+        async function downloadMod(projectId, modName) {
+            try {
+                showToast(`Starting download of ${modName}...`, 'info');
+                
+                // Get latest version for the selected loader and version
+                const version = document.getElementById('modVersion').value;
+                const loader = document.getElementById('modLoader').value;
+                
+                const versionsResponse = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version`);
+                const versions = await versionsResponse.json();
+                
+                // Find compatible version
+                const compatibleVersion = versions.find(v => 
+                    v.loaders.includes(loader) && v.game_versions.includes(version)
+                );
+                
+                if (!compatibleVersion) {
+                    showToast(`No compatible version found for ${loader} ${version}`, 'error');
+                    return;
+                }
+                
+                // Get the JAR file
+                const jarFile = compatibleVersion.files.find(f => f.primary);
+                if (!jarFile) {
+                    showToast('No JAR file found for this mod', 'error');
+                    return;
+                }
+                
+                // Download the mod with progress tracking
+                const downloadResponse = await fetch(`/api/download-mod`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: jarFile.url,
+                        filename: jarFile.filename,
+                        modName: modName
+                    })
+                });
+                
+                const result = await downloadResponse.json();
+                if (result.success) {
+                    showToast(`Download started for ${modName}`, 'success');
+                } else {
+                    showToast(result.message || 'Failed to start download', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                showToast('Failed to start download', 'error');
             }
-            
-            // Hide progress after completion
-            if (status === 'completed' || status === 'error') {
-                setTimeout(() => {
-                    document.getElementById('updateProgressContainer').classList.add('hidden');
-                }, 5000);
-            }
-        });
+        }
     </script>
 </body>
 </html> 
