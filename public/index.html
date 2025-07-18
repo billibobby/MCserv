@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCServ - Minecraft Server Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        .minecraft-dark { background-color: #1a1a1a; }
+        .minecraft-gray { background-color: #2d2d2d; }
+        .minecraft-light-gray { background-color: #404040; }
+        .minecraft-green { color: #55ff55; }
+        .status-online { color: #55ff55; }
+        .status-offline { color: #ff5555; }
+        .minecraft-card { @apply bg-minecraft-dark border border-minecraft-light-gray rounded-lg p-4; }
+        .minecraft-input { 
+            @apply px-3 py-2 bg-minecraft-dark border border-minecraft-light-gray rounded text-white focus:outline-none focus:border-minecraft-green;
+            color: white !important;
+        }
+        .minecraft-input::placeholder {
+            color: #888 !important;
+        }
+        select.minecraft-input {
+            color: white !important;
+        }
+        select.minecraft-input option {
+            background-color: #1a1a1a !important;
+            color: white !important;
+        }
+        select.minecraft-input {
+            background-color: #1a1a1a !important;
+            color: white !important;
+        }
+        select.minecraft-input:focus {
+            background-color: #1a1a1a !important;
+            color: white !important;
+        }
+        /* Force dropdown styling */
+        select {
+            background-color: #1a1a1a !important;
+            color: white !important;
+        }
+        select option {
+            background-color: #1a1a1a !important;
+            color: white !important;
+        }
+        
+        /* Comprehensive input styling for all form elements */
+        input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="file"] {
+            background-color: #1a1a1a !important;
+            color: white !important;
+            border: 1px solid #404040 !important;
+            padding: 8px 12px !important;
+            border-radius: 4px !important;
+        }
+        
+        input[type="text"]:focus, input[type="number"]:focus, input[type="email"]:focus, input[type="password"]:focus {
+            background-color: #1a1a1a !important;
+            color: white !important;
+            border-color: #55ff55 !important;
+            outline: none !important;
+        }
+        
+        input[type="text"]::placeholder, input[type="number"]::placeholder, input[type="email"]::placeholder, input[type="password"]::placeholder {
+            color: #888 !important;
+        }
+        
+        /* File input specific styling */
+        input[type="file"] {
+            background-color: #1a1a1a !important;
+            color: white !important;
+            border: 1px solid #404040 !important;
+        }
+        
+        input[type="file"]::-webkit-file-upload-button {
+            background-color: #404040 !important;
+            color: white !important;
+            border: none !important;
+            padding: 8px 16px !important;
+            border-radius: 4px !important;
+            margin-right: 8px !important;
+            cursor: pointer !important;
+        }
+        
+        input[type="file"]::-webkit-file-upload-button:hover {
+            background-color: #555 !important;
+        }
+        
+        /* Ensure all selects have proper styling */
+        select {
+            background-color: #1a1a1a !important;
+            color: white !important;
+            border: 1px solid #404040 !important;
+            padding: 8px 12px !important;
+            border-radius: 4px !important;
+        }
+        
+        select:focus {
+            background-color: #1a1a1a !important;
+            color: white !important;
+            border-color: #55ff55 !important;
+            outline: none !important;
+        }
+        
+        select option {
+            background-color: #1a1a1a !important;
+            color: white !important;
+            padding: 8px !important;
+        }
+        
+        select option:hover {
+            background-color: #404040 !important;
+        }
+        
+        /* Override any conflicting styles */
+        * {
+            box-sizing: border-box;
+        }
+        .minecraft-button { @apply px-4 py-2 bg-minecraft-green text-black font-medium rounded hover:bg-green-400 transition-colors duration-200; }
+        .minecraft-button-secondary { @apply px-4 py-2 bg-minecraft-light-gray text-white font-medium rounded hover:bg-gray-500 transition-colors duration-200; }
+        .minecraft-button-danger { @apply px-4 py-2 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition-colors duration-200; }
+        
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .toast {
+            background: #2d2d2d;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 4px solid #55ff55;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .toast.error { border-left-color: #ff5555; }
+        .toast.info { border-left-color: #45B7D1; }
+        
+        /* Tab styles */
+        .tab-active {
+            @apply bg-minecraft-dark text-minecraft-green border-b-2 border-minecraft-green;
+        }
+        .tab-inactive {
+            @apply text-gray-300 hover:text-white hover:bg-minecraft-light-gray;
+        }
+        
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #404040;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="minecraft-dark text-white min-h-screen">
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Header -->
+    <header class="bg-minecraft-gray border-b-2 border-minecraft-light-gray p-4">
+        <div class="max-w-7xl mx-auto">
+            <h1 class="text-3xl font-bold text-minecraft-green">
+                🎮 MCServ - Minecraft Server Manager
+            </h1>
+            <div class="flex items-center mt-2">
+                <span class="text-sm text-gray-300">Status:</span>
+                <span id="serverStatus" class="ml-2 text-sm font-bold status-offline">🔴 Offline</span>
+                <span id="currentHost" class="ml-4 text-sm text-gray-300 hidden">
+                    Host: <span class="text-minecraft-green" id="hostUsername"></span>
+                </span>
+            </div>
+            
+            <!-- Recent Notifications -->
+            <div id="notificationsContainer" class="mt-3 p-2 bg-minecraft-dark rounded border border-minecraft-light-gray hidden">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-300">Recent Updates:</span>
+                    <button id="clearNotifications" class="text-xs text-gray-400 hover:text-white">
+                        Clear
+                    </button>
+                </div>
+                <div id="notificationsList" class="mt-1 space-y-1">
+                </div>
+            </div>
+            
+            <!-- Update Notification -->
+            <div id="updateNotification" class="mt-3 p-3 bg-blue-900 border border-blue-500 rounded hidden">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <span class="text-blue-300 mr-2">🔄</span>
+                        <span class="text-sm text-blue-200">New version available!</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button id="viewUpdateDetails" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
+                            View Details
+                        </button>
+                        <button id="dismissUpdate" class="text-xs text-blue-400 hover:text-blue-300">
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+                <div id="updateDetails" class="mt-2 text-xs text-blue-300 hidden">
+                    <div class="mb-2">
+                        <strong>Version:</strong> <span id="updateVersion"></span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Released:</strong> <span id="updateDate"></span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Changelog:</strong>
+                        <div id="updateChangelog" class="mt-1 p-2 bg-blue-950 rounded text-xs max-h-20 overflow-y-auto"></div>
+                    </div>
+                    <div class="flex space-x-2 mt-2">
+                        <button id="downloadUpdate" class="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded">
+                            Download Update
+                        </button>
+                        <button id="checkForUpdates" class="text-xs bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded">
+                            Check Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-minecraft-gray border-b border-minecraft-light-gray">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex space-x-1 overflow-x-auto">
+                <button id="tab-control" class="tab-active px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200">
+                    <span class="mr-2">🎮</span>Server Control
+                </button>
+                <button id="tab-mods" class="tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200">
+                    <span class="mr-2">📦</span>Mod Manager
+                </button>
+                <button id="tab-settings" class="tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200">
+                    <span class="mr-2">⚙️</span>Settings
+                </button>
+                <button id="tab-backups" class="tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200">
+                    <span class="mr-2">💾</span>Backups
+                </button>
+                <button id="tab-logs" class="tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200">
+                    <span class="mr-2">📋</span>Server Logs
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content with Side Panel -->
+    <div class="max-w-7xl mx-auto p-4">
+        <div class="flex gap-6">
+            <!-- Main Content Area -->
+            <div class="flex-1">
+                <!-- Server Control Tab -->
+                <div id="content-control" class="space-y-6">
+                    <!-- Server Status Card -->
+                    <div class="minecraft-card">
+                        <h2 class="text-xl font-bold text-minecraft-green mb-4 flex items-center">
+                            🎮 Server Control
+                        </h2>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Start Server -->
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Start Server</h3>
+                                <div class="space-y-2">
+                                    <div>
+                                        <label class="text-sm text-gray-300">Host Username:</label>
+                                        <input type="text" id="hostUser" placeholder="Enter your username" 
+                                               class="minecraft-input w-full mt-1">
+                                    </div>
+                                    <div>
+                                        <label class="text-sm text-gray-300">Server Type:</label>
+                                        <select id="serverType" class="minecraft-input w-full mt-1">
+                                            <option value="vanilla">Vanilla</option>
+                                            <option value="forge">Forge</option>
+                                            <option value="fabric">Fabric</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-sm text-gray-300">Minecraft Version:</label>
+                                        <select id="minecraftVersion" class="minecraft-input w-full mt-1">
+                                            <option value="1.21.8" selected>1.21.8 (Latest)</option>
+                                            <option value="1.21.7">1.21.7</option>
+                                            <option value="1.21.6">1.21.6</option>
+                                            <option value="1.21.5">1.21.5</option>
+                                            <option value="1.21.4">1.21.4</option>
+                                            <option value="1.21.3">1.21.3</option>
+                                            <option value="1.21.2">1.21.2</option>
+                                            <option value="1.21.1">1.21.1</option>
+                                            <option value="1.21.0">1.21.0</option>
+                                            <option value="1.20.6">1.20.6</option>
+                                            <option value="1.20.5">1.20.5</option>
+                                            <option value="1.20.4">1.20.4</option>
+                                            <option value="1.20.3">1.20.3</option>
+                                            <option value="1.20.2">1.20.2</option>
+                                            <option value="1.20.1">1.20.1</option>
+                                            <option value="1.20.0">1.20.0</option>
+                                            <option value="1.19.4">1.19.4</option>
+                                            <option value="1.19.3">1.19.3</option>
+                                            <option value="1.19.2">1.19.2</option>
+                                            <option value="1.19.1">1.19.1</option>
+                                            <option value="1.19.0">1.19.0</option>
+                                            <option value="1.18.2">1.18.2</option>
+                                            <option value="1.18.1">1.18.1</option>
+                                            <option value="1.18.0">1.18.0</option>
+                                            <option value="1.17.1">1.17.1</option>
+                                            <option value="1.17.0">1.17.0</option>
+                                            <option value="1.16.5">1.16.5</option>
+                                            <option value="1.16.4">1.16.4</option>
+                                            <option value="1.16.3">1.16.3</option>
+                                            <option value="1.16.2">1.16.2</option>
+                                            <option value="1.16.1">1.16.1</option>
+                                            <option value="1.16.0">1.16.0</option>
+                                            <option value="1.15.2">1.15.2</option>
+                                            <option value="1.15.1">1.15.1</option>
+                                            <option value="1.15.0">1.15.0</option>
+                                            <option value="1.14.4">1.14.4</option>
+                                            <option value="1.14.3">1.14.3</option>
+                                            <option value="1.14.2">1.14.2</option>
+                                            <option value="1.14.1">1.14.1</option>
+                                            <option value="1.14.0">1.14.0</option>
+                                            <option value="1.13.2">1.13.2</option>
+                                            <option value="1.13.1">1.13.1</option>
+                                            <option value="1.13.0">1.13.0</option>
+                                            <option value="1.12.2">1.12.2</option>
+                                            <option value="1.12.1">1.12.1</option>
+                                            <option value="1.12.0">1.12.0</option>
+                                            <option value="1.11.2">1.11.2</option>
+                                            <option value="1.11.1">1.11.1</option>
+                                            <option value="1.11.0">1.11.0</option>
+                                            <option value="1.10.2">1.10.2</option>
+                                            <option value="1.10.1">1.10.1</option>
+                                            <option value="1.10.0">1.10.0</option>
+                                            <option value="1.9.4">1.9.4</option>
+                                            <option value="1.9.3">1.9.3</option>
+                                            <option value="1.9.2">1.9.2</option>
+                                            <option value="1.9.1">1.9.1</option>
+                                            <option value="1.9.0">1.9.0</option>
+                                            <option value="1.8.9">1.8.9</option>
+                                            <option value="1.8.8">1.8.8</option>
+                                            <option value="1.8.7">1.8.7</option>
+                                            <option value="1.8.6">1.8.6</option>
+                                            <option value="1.8.5">1.8.5</option>
+                                            <option value="1.8.4">1.8.4</option>
+                                            <option value="1.8.3">1.8.3</option>
+                                            <option value="1.8.2">1.8.2</option>
+                                            <option value="1.8.1">1.8.1</option>
+                                            <option value="1.8.0">1.8.0</option>
+                                        </select>
+                                    </div>
+                                    <button id="startServer" class="minecraft-button w-full">
+                                        Start Server
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Server Management -->
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Server Management</h3>
+                                <div class="space-y-2">
+                                    <button id="stopServer" class="minecraft-button-danger w-full">
+                                        Stop Server
+                                    </button>
+                                    <div>
+                                        <label class="text-sm text-gray-300">Transfer Hosting:</label>
+                                        <div class="flex space-x-2 mt-1">
+                                            <input type="text" id="newHost" placeholder="New host username" 
+                                                   class="minecraft-input flex-1">
+                                            <button id="transferHosting" class="minecraft-button-secondary">
+                                                Transfer
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connection Info -->
+                    <div class="minecraft-card">
+                        <h2 class="text-xl font-bold text-minecraft-green mb-4 flex items-center">
+                            🌐 Connection Information
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-sm text-gray-300">Server Address:</label>
+                                <div class="flex items-center space-x-2 mt-1">
+                                    <input type="text" id="serverAddress" value="localhost" readonly 
+                                           class="minecraft-input flex-1">
+                                    <button onclick="copyToClipboard('localhost', 'Server Address')" 
+                                            class="minecraft-button-secondary">
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-300">Port:</label>
+                                <div class="flex items-center space-x-2 mt-1">
+                                    <input type="text" id="serverPort" value="25565" readonly 
+                                           class="minecraft-input flex-1">
+                                    <button onclick="copyToClipboard('25565', 'Port')" 
+                                            class="minecraft-button-secondary">
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- IP Detection Section -->
+                        <div class="mt-4 p-4 bg-minecraft-gray rounded border border-minecraft-light-gray">
+                            <h3 class="text-lg font-semibold text-white mb-3">🌍 Public IP Address</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-sm text-gray-300">Your Public IP:</label>
+                                    <div class="flex items-center space-x-2 mt-1">
+                                        <input type="text" id="publicIP" value="Click 'Find My IP' to detect" readonly 
+                                               class="minecraft-input flex-1">
+                                        <button id="findIPBtn" class="minecraft-button">
+                                            🔍 Find My IP
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-sm text-gray-300">Connection String:</label>
+                                    <div class="flex items-center space-x-2 mt-1">
+                                        <input type="text" id="connectionString" value="IP:PORT" readonly 
+                                               class="minecraft-input flex-1">
+                                        <button id="copyConnectionBtn" onclick="copyConnectionString()" 
+                                                class="minecraft-button-secondary" disabled>
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="text-xs text-gray-400 space-y-1">
+                                    <div>💡 <strong>For friends to join:</strong></div>
+                                    <div>• Click "Find My IP" to get your public IP</div>
+                                    <div>• Make sure port 25565 is forwarded in your router</div>
+                                    <div>• Share the connection string with your friends</div>
+                                    <div>• They connect using: <span id="connectionExample" class="text-minecraft-green">IP:25565</span></div>
+                                </div>
+                                
+                                <!-- Connection Diagnostics -->
+                                <div class="mt-4 p-3 bg-minecraft-dark rounded border border-minecraft-light-gray">
+                                    <h4 class="text-sm font-medium text-gray-300 mb-2">🔧 Connection Diagnostics</h4>
+                                    <div class="space-y-2">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs text-gray-400">Server Status:</span>
+                                            <span id="serverStatusIndicator" class="text-xs px-2 py-1 rounded bg-red-600 text-white">Stopped</span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs text-gray-400">Port 25565:</span>
+                                            <span id="portStatusIndicator" class="text-xs px-2 py-1 rounded bg-gray-600 text-white">Unknown</span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs text-gray-400">Local IP:</span>
+                                            <span id="localIPIndicator" class="text-xs text-minecraft-green">Detecting...</span>
+                                        </div>
+                                        <button id="testConnectionBtn" class="w-full mt-2 px-3 py-1 bg-minecraft-light-gray text-white text-xs rounded hover:bg-gray-500">
+                                            🔍 Test Connection
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mod Manager Tab -->
+                <div id="content-mods" class="space-y-6 hidden">
+                    <div class="minecraft-card">
+                        <h2 class="text-xl font-bold text-minecraft-green mb-4 flex items-center">
+                            📦 Mod Manager
+                        </h2>
+                        
+                        <!-- Search and Filter Controls -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                            <div>
+                                <label class="text-sm text-gray-300">Search Mods:</label>
+                                <input type="text" id="modSearch" placeholder="e.g., OptiFine, JEI, Biomes..." 
+                                       class="minecraft-input w-full mt-1">
+                                <div class="text-xs text-gray-500 mt-1">
+                                    Popular: OptiFine, JEI, Biomes O' Plenty, Create, Tinkers Construct
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-300">Minecraft Version:</label>
+                                <select id="modVersion" class="minecraft-input w-full mt-1">
+                                    <option value="1.21.8" selected>1.21.8 (Latest)</option>
+                                    <option value="1.21.7">1.21.7</option>
+                                    <option value="1.21.6">1.21.6</option>
+                                    <option value="1.21.5">1.21.5</option>
+                                    <option value="1.21.4">1.21.4</option>
+                                    <option value="1.21.3">1.21.3</option>
+                                    <option value="1.21.2">1.21.2</option>
+                                    <option value="1.21.1">1.21.1</option>
+                                    <option value="1.21.0">1.21.0</option>
+                                    <option value="1.20.6">1.20.6</option>
+                                    <option value="1.20.5">1.20.5</option>
+                                    <option value="1.20.4">1.20.4</option>
+                                    <option value="1.20.3">1.20.3</option>
+                                    <option value="1.20.2">1.20.2</option>
+                                    <option value="1.20.1">1.20.1</option>
+                                    <option value="1.20.0">1.20.0</option>
+                                    <option value="1.19.4">1.19.4</option>
+                                    <option value="1.19.3">1.19.3</option>
+                                    <option value="1.19.2">1.19.2</option>
+                                    <option value="1.19.1">1.19.1</option>
+                                    <option value="1.19.0">1.19.0</option>
+                                    <option value="1.18.2">1.18.2</option>
+                                    <option value="1.18.1">1.18.1</option>
+                                    <option value="1.18.0">1.18.0</option>
+                                    <option value="1.17.1">1.17.1</option>
+                                    <option value="1.17.0">1.17.0</option>
+                                    <option value="1.16.5">1.16.5</option>
+                                    <option value="1.16.4">1.16.4</option>
+                                    <option value="1.16.3">1.16.3</option>
+                                    <option value="1.16.2">1.16.2</option>
+                                    <option value="1.16.1">1.16.1</option>
+                                    <option value="1.16.0">1.16.0</option>
+                                    <option value="1.15.2">1.15.2</option>
+                                    <option value="1.15.1">1.15.1</option>
+                                    <option value="1.15.0">1.15.0</option>
+                                    <option value="1.14.4">1.14.4</option>
+                                    <option value="1.14.3">1.14.3</option>
+                                    <option value="1.14.2">1.14.2</option>
+                                    <option value="1.14.1">1.14.1</option>
+                                    <option value="1.14.0">1.14.0</option>
+                                    <option value="1.13.2">1.13.2</option>
+                                    <option value="1.13.1">1.13.1</option>
+                                    <option value="1.13.0">1.13.0</option>
+                                    <option value="1.12.2">1.12.2</option>
+                                    <option value="1.12.1">1.12.1</option>
+                                    <option value="1.12.0">1.12.0</option>
+                                    <option value="1.11.2">1.11.2</option>
+                                    <option value="1.11.1">1.11.1</option>
+                                    <option value="1.11.0">1.11.0</option>
+                                    <option value="1.10.2">1.10.2</option>
+                                    <option value="1.10.1">1.10.1</option>
+                                    <option value="1.10.0">1.10.0</option>
+                                    <option value="1.9.4">1.9.4</option>
+                                    <option value="1.9.3">1.9.3</option>
+                                    <option value="1.9.2">1.9.2</option>
+                                    <option value="1.9.1">1.9.1</option>
+                                    <option value="1.9.0">1.9.0</option>
+                                    <option value="1.8.9">1.8.9</option>
+                                    <option value="1.8.8">1.8.8</option>
+                                    <option value="1.8.7">1.8.7</option>
+                                    <option value="1.8.6">1.8.6</option>
+                                    <option value="1.8.5">1.8.5</option>
+                                    <option value="1.8.4">1.8.4</option>
+                                    <option value="1.8.3">1.8.3</option>
+                                    <option value="1.8.2">1.8.2</option>
+                                    <option value="1.8.1">1.8.1</option>
+                                    <option value="1.8.0">1.8.0</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-300">Mod Loader:</label>
+                                <select id="modLoader" class="minecraft-input w-full mt-1">
+                                    <option value="forge">Forge</option>
+                                    <option value="fabric">Fabric</option>
+                                    <option value="neoforge">NeoForge</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-300">Sort By:</label>
+                                <select id="modSort" class="minecraft-input w-full mt-1">
+                                    <option value="relevance">Relevance</option>
+                                    <option value="downloads">Downloads</option>
+                                    <option value="follows">Follows</option>
+                                    <option value="newest">Newest</option>
+                                    <option value="updated">Recently Updated</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Search Button -->
+                        <div class="flex space-x-2 mb-6">
+                            <button id="searchMods" class="minecraft-button">
+                                🔍 Search Modrinth
+                            </button>
+                            <button id="showAllMods" class="minecraft-button-secondary">
+                                🌟 Show Popular Mods
+                            </button>
+                            <button id="refreshMods" class="minecraft-button-secondary">
+                                🔄 Refresh
+                            </button>
+                        </div>
+
+                        <!-- Quick Search Presets -->
+                        <div class="mb-6">
+                            <label class="text-sm text-gray-300 mb-2 block">Quick Search:</label>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="quickSearch('OptiFine')" class="px-3 py-1 bg-minecraft-light-gray text-white text-xs rounded hover:bg-gray-500">
+                                    🚀 OptiFine
+                                </button>
+                                <button onclick="quickSearch('JEI')" class="px-3 py-1 bg-minecraft-light-gray text-white text-xs rounded hover:bg-gray-500">
+                                    📋 JEI
+                                </button>
+                                <button onclick="quickSearch('Biomes O Plenty')" class="px-3 py-1 bg-minecraft-light-gray text-white text-xs rounded hover:bg-gray-500">
+                                    🌍 Biomes
+                                </button>
+                                <button onclick="quickSearch('Create')" class="px-3 py-1 bg-minecraft-light-gray text-white text-xs rounded hover:bg-gray-500">
+                                    ⚙️ Create
+                                </button>
+                                <button onclick="quickSearch('Tinkers Construct')" class="px-3 py-1 bg-minecraft-light-gray text-white text-xs rounded hover:bg-gray-500">
+                                    🔨 Tinkers
+                                </button>
+                                <button onclick="quickSearch('Applied Energistics')" class="px-3 py-1 bg-minecraft-light-gray text-white text-xs rounded hover:bg-gray-500">
+                                    💎 AE2
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Modrinth Results -->
+                        <div id="modrinthResults" class="hidden">
+                            <h3 class="text-lg font-semibold text-white mb-4">Modrinth Results</h3>
+                            <div id="modrinthList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                                <!-- Mod cards will be populated here -->
+                            </div>
+                        </div>
+
+                        <!-- Upload Section -->
+                        <div class="mt-6 p-4 bg-minecraft-gray rounded border border-minecraft-light-gray">
+                            <h3 class="text-lg font-semibold text-white mb-4">Upload Custom Mod</h3>
+                            <div class="flex items-center space-x-2">
+                                <input type="file" id="modFile" accept=".jar" 
+                                       class="minecraft-input flex-1">
+                                <button id="uploadMod" class="minecraft-button">
+                                    Upload
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Installed Mods -->
+                        <div class="mt-6">
+                            <h3 class="text-lg font-semibold text-white mb-4">Installed Mods</h3>
+                            <div id="modsList" class="space-y-2">
+                                <div class="text-gray-500 text-sm italic">No mods installed</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="content-settings" class="space-y-6 hidden">
+                    <div class="minecraft-card">
+                        <h2 class="text-xl font-bold text-minecraft-green mb-4 flex items-center">
+                            ⚙️ Server Settings
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-sm text-gray-300">Max Players:</label>
+                                <input type="number" id="maxPlayers" value="10" min="1" max="50" 
+                                       class="minecraft-input w-full mt-1">
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-300">View Distance:</label>
+                                <input type="number" id="viewDistance" value="10" min="3" max="32" 
+                                       class="minecraft-input w-full mt-1">
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-300">Memory (GB):</label>
+                                <input type="number" id="memory" value="2" min="1" max="16" 
+                                       class="minecraft-input w-full mt-1">
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-300">Online Mode:</label>
+                                <select id="onlineMode" class="minecraft-input w-full mt-1">
+                                    <option value="true">Enabled</option>
+                                    <option value="false">Disabled</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button id="saveSettings" class="minecraft-button mt-4">
+                            Save Settings
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Backups Tab -->
+                <div id="content-backups" class="space-y-6 hidden">
+                    <div class="minecraft-card">
+                        <h2 class="text-xl font-bold text-minecraft-green mb-4 flex items-center">
+                            💾 Backup Manager
+                        </h2>
+                        <div class="space-y-4">
+                            <div class="flex space-x-2">
+                                <button id="createBackup" class="minecraft-button">
+                                    Create Backup
+                                </button>
+                                <button id="restoreBackup" class="minecraft-button-secondary">
+                                    Restore Backup
+                                </button>
+                            </div>
+                            
+                            <!-- Backup List -->
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-2">Available Backups</h3>
+                                <div id="backupsList" class="space-y-2">
+                                    <div class="text-gray-500 text-sm italic">No backups available</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Server Logs Tab -->
+                <div id="content-logs" class="space-y-6 hidden">
+                    <div class="minecraft-card">
+                        <h2 class="text-xl font-bold text-minecraft-green mb-4 flex items-center">
+                            📋 Server Logs
+                        </h2>
+                        <div id="serverLogs" class="bg-black p-3 rounded text-sm font-mono h-96 overflow-y-auto">
+                            <div class="text-gray-500">Waiting for server logs...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Side Panel -->
+            <div class="w-80">
+                <div class="minecraft-card">
+                    <h2 class="text-lg font-bold text-minecraft-green mb-4">👥 Connected Users</h2>
+                    
+                    <!-- User Connection Form -->
+                    <div id="userForm" class="mb-4 p-3 bg-minecraft-gray rounded border border-minecraft-light-gray">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Enter your username to join:</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="userName" placeholder="Your username..." 
+                                   class="minecraft-input flex-1">
+                            <button id="joinBtn" class="minecraft-button">
+                                Join
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Connected Users List -->
+                    <div class="space-y-2">
+                        <h4 class="text-sm font-medium text-gray-300 mb-2">Online Players:</h4>
+                        <div id="userList" class="space-y-1 max-h-64 overflow-y-auto">
+                            <div class="text-gray-500 text-sm italic">No players connected</div>
+                        </div>
+                    </div>
+
+                                            <!-- Server Info -->
+                        <div class="mt-4 p-3 bg-minecraft-gray rounded border border-minecraft-light-gray">
+                            <h4 class="text-sm font-medium text-gray-300 mb-2">Server Info:</h4>
+                            <div class="text-xs text-gray-400 space-y-1">
+                                <div>Port: 25565</div>
+                                <div>Version: 1.21.8 (Latest)</div>
+                                <div>Max Players: 10</div>
+                                <div>Online Mode: Enabled</div>
+                            </div>
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io(window.location.origin);
+        let connectedUsers = [];
+        let isConnected = false;
+        let userColor = '';
+        let notifications = [];
+        let activeTab = 'control';
+
+        // Toast notification system
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            
+            const container = document.getElementById('toastContainer');
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Generate random color for user
+        function generateUserColor() {
+            const colors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
+                '#F9E79F', '#ABEBC6', '#FAD7A0', '#AED6F1', '#D5A6BD'
+            ];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Update server status
+        function updateServerStatus(status) {
+            const statusElement = document.getElementById('serverStatus');
+            const hostElement = document.getElementById('currentHost');
+            const hostUsernameElement = document.getElementById('hostUsername');
+            
+            if (status.isRunning) {
+                statusElement.textContent = '🟢 Online';
+                statusElement.className = 'ml-2 text-sm font-bold status-online';
+            } else {
+                statusElement.textContent = '🔴 Offline';
+                statusElement.className = 'ml-2 text-sm font-bold status-offline';
+            }
+            
+            if (status.currentHost) {
+                hostElement.classList.remove('hidden');
+                hostUsernameElement.textContent = status.currentHost;
+            } else {
+                hostElement.classList.add('hidden');
+            }
+        }
+
+        // Update user list
+        function updateUserList() {
+            const userListElement = document.getElementById('userList');
+            console.log('Updating user list with:', connectedUsers);
+            if (connectedUsers.length === 0) {
+                userListElement.innerHTML = '<div class="text-gray-500 text-sm italic">No players connected</div>';
+            } else {
+                userListElement.innerHTML = connectedUsers.map(user => `
+                    <div class="flex items-center p-2 bg-minecraft-gray rounded border border-minecraft-light-gray">
+                        <div class="w-3 h-3 rounded-full mr-3" style="background-color: ${user.color}"></div>
+                        <span class="font-medium text-sm" style="color: ${user.color}">${user.username || user.name || 'Unknown'}</span>
+                        ${user.isHost ? '<span class="ml-2 text-xs bg-yellow-600 text-white px-2 py-1 rounded">👑 Host</span>' : ''}
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Add log message
+        function addLogMessage(message) {
+            const logsElement = document.getElementById('serverLogs');
+            const logEntry = document.createElement('div');
+            logEntry.className = 'text-gray-300 mb-1';
+            logEntry.textContent = message;
+            logsElement.appendChild(logEntry);
+            logsElement.scrollTop = logsElement.scrollHeight;
+        }
+
+        // Tab switching
+        function switchTab(tabId) {
+            // Hide all content
+            document.querySelectorAll('[id^="content-"]').forEach(el => el.classList.add('hidden'));
+            // Show selected content
+            document.getElementById(`content-${tabId}`).classList.remove('hidden');
+            
+            // Update tab styles
+            document.querySelectorAll('[id^="tab-"]').forEach(el => {
+                el.classList.remove('tab-active');
+                el.classList.add('tab-inactive');
+            });
+            document.getElementById(`tab-${tabId}`).classList.remove('tab-inactive');
+            document.getElementById(`tab-${tabId}`).classList.add('tab-active');
+            
+            activeTab = tabId;
+        }
+
+        // Copy to clipboard
+        function copyToClipboard(text, label) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast(`${label} copied to clipboard!`);
+            }).catch(() => {
+                showToast('Failed to copy to clipboard', 'error');
+            });
+        }
+
+        // Socket event listeners
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            addLogMessage('Connected to MCServ backend');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            addLogMessage('Disconnected from MCServ backend');
+        });
+
+        socket.on('serverStatus', (data) => {
+            console.log('Received server status:', data);
+            updateServerStatus({ isRunning: data.status === 'running' });
+        });
+
+        socket.on('serverOutput', (data) => {
+            addLogMessage(data.output);
+        });
+
+        socket.on('userList', (data) => {
+            console.log('Received user list update:', data);
+            connectedUsers = data.users || [];
+            updateUserList();
+        });
+
+        socket.on('userJoined', (data) => {
+            console.log('User joined:', data);
+            connectedUsers.push({ username: data.username, color: data.color });
+            updateUserList();
+            addLogMessage(`${data.username} joined the server`);
+        });
+
+        socket.on('userLeft', (data) => {
+            console.log('User left:', data);
+            connectedUsers = connectedUsers.filter(u => u.username !== data.username);
+            updateUserList();
+            addLogMessage(`${data.username} left the server`);
+        });
+
+        socket.on('hostUpdate', (data) => {
+            console.log('Host update:', data);
+            if (data.currentHost) {
+                addLogMessage(`👑 ${data.currentHost} is now the host`);
+                showToast(`👑 ${data.currentHost} is now the host`, 'info');
+            }
+        });
+
+        // Tab event listeners
+        document.getElementById('tab-control').addEventListener('click', () => switchTab('control'));
+        document.getElementById('tab-mods').addEventListener('click', () => switchTab('mods'));
+        document.getElementById('tab-settings').addEventListener('click', () => switchTab('settings'));
+        document.getElementById('tab-backups').addEventListener('click', () => switchTab('backups'));
+        document.getElementById('tab-logs').addEventListener('click', () => switchTab('logs'));
+
+        // Button event listeners
+        document.getElementById('joinBtn').addEventListener('click', () => {
+            const userName = document.getElementById('userName').value.trim();
+            console.log('Join button clicked, username:', userName);
+            if (userName) {
+                const color = generateUserColor();
+                userColor = color;
+                isConnected = true;
+                console.log('Emitting join with:', { username: userName });
+                socket.emit('join', { username: userName });
+                
+                // Update UI
+                document.getElementById('userForm').innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${color}"></div>
+                            <span class="text-white font-medium">${userName}</span>
+                            <span class="ml-2 text-xs text-green-400">● Connected</span>
+                        </div>
+                        <button id="leaveBtn" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700">
+                            Leave
+                        </button>
+                    </div>
+                `;
+                
+                document.getElementById('leaveBtn').addEventListener('click', () => {
+                    isConnected = false;
+                    // User will be removed when they disconnect naturally
+                    document.getElementById('userForm').innerHTML = `
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Enter your username to join:</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="userName" placeholder="Your username..." 
+                                   class="minecraft-input flex-1">
+                            <button id="joinBtn" class="minecraft-button">
+                                Join
+                            </button>
+                        </div>
+                    `;
+                    document.getElementById('joinBtn').addEventListener('click', arguments.callee);
+                });
+            }
+        });
+
+        document.getElementById('startServer').addEventListener('click', async () => {
+            const hostUser = document.getElementById('hostUser').value.trim();
+            const serverType = document.getElementById('serverType').value;
+            const version = document.getElementById('minecraftVersion').value;
+            
+            if (hostUser) {
+                try {
+                    const response = await fetch('/api/start', { 
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ hostUser, serverType, version })
+                    });
+                    const result = await response.json();
+                    showToast(result.message, result.success ? 'success' : 'error');
+                } catch (error) {
+                    showToast('Failed to start server', 'error');
+                }
+            } else {
+                showToast('Please enter a username to start the server', 'error');
+            }
+        });
+
+        document.getElementById('stopServer').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/stop', { method: 'POST' });
+                const result = await response.json();
+                showToast(result.message, result.success ? 'success' : 'error');
+            } catch (error) {
+                showToast('Failed to stop server', 'error');
+            }
+        });
+
+        document.getElementById('transferHosting').addEventListener('click', async () => {
+            const newHost = document.getElementById('newHost').value.trim();
+            if (newHost) {
+                try {
+                    const response = await fetch('/api/transfer-hosting', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ newHost })
+                    });
+                    const result = await response.json();
+                    showToast(result.message, result.success ? 'success' : 'error');
+                    if (result.success) {
+                        document.getElementById('newHost').value = '';
+                    }
+                } catch (error) {
+                    showToast('Failed to transfer hosting', 'error');
+                }
+            } else {
+                showToast('Please enter the new host username', 'error');
+            }
+        });
+
+        // Modrinth Search Functionality
+        document.getElementById('searchMods').addEventListener('click', async () => {
+            const query = document.getElementById('modSearch').value.trim();
+            const version = document.getElementById('modVersion').value;
+            const loader = document.getElementById('modLoader').value;
+            const sort = document.getElementById('modSort').value;
+            
+            if (!query) {
+                showToast('Please enter a search term', 'error');
+                return;
+            }
+            
+            await searchModrinth(query, version, loader, sort);
+        });
+
+        // Show All Popular Mods
+        document.getElementById('showAllMods').addEventListener('click', async () => {
+            const version = document.getElementById('modVersion').value;
+            const loader = document.getElementById('modLoader').value;
+            const sort = document.getElementById('modSort').value;
+            
+            await searchModrinth('', version, loader, sort, true);
+        });
+
+        // Search on Enter key
+        document.getElementById('modSearch').addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                const query = e.target.value.trim();
+                const version = document.getElementById('modVersion').value;
+                const loader = document.getElementById('modLoader').value;
+                const sort = document.getElementById('modSort').value;
+                
+                if (query) {
+                    await searchModrinth(query, version, loader, sort);
+                } else {
+                    await searchModrinth('', version, loader, sort, true);
+                }
+            }
+        });
+
+        // Quick search function
+        async function quickSearch(query) {
+            document.getElementById('modSearch').value = query;
+            const version = document.getElementById('modVersion').value;
+            const loader = document.getElementById('modLoader').value;
+            const sort = document.getElementById('modSort').value;
+            
+            await searchModrinth(query, version, loader, sort);
+        }
+
+        // IP Detection Functionality
+        document.getElementById('findIPBtn').addEventListener('click', async () => {
+            const button = document.getElementById('findIPBtn');
+            const ipInput = document.getElementById('publicIP');
+            const connectionInput = document.getElementById('connectionString');
+            const copyBtn = document.getElementById('copyConnectionBtn');
+            const exampleSpan = document.getElementById('connectionExample');
+            
+            try {
+                button.disabled = true;
+                button.textContent = '🔍 Detecting...';
+                ipInput.value = 'Detecting your IP address...';
+                
+                // Try multiple IP detection services for reliability
+                const ipServices = [
+                    'https://api.ipify.org?format=json',
+                    'https://api.myip.com',
+                    'https://ipapi.co/json',
+                    'https://api64.ipify.org?format=json'
+                ];
+                
+                let publicIP = null;
+                
+                for (const service of ipServices) {
+                    try {
+                        const response = await fetch(service);
+                        const data = await response.json();
+                        publicIP = data.ip || data.query || data.ipAddress;
+                        if (publicIP) break;
+                    } catch (error) {
+                        console.log(`IP service ${service} failed, trying next...`);
+                        continue;
+                    }
+                }
+                
+                if (publicIP) {
+                    ipInput.value = publicIP;
+                    connectionInput.value = `${publicIP}:25565`;
+                    exampleSpan.textContent = `${publicIP}:25565`;
+                    copyBtn.disabled = false;
+                    
+                    showToast(`Found your IP: ${publicIP}`, 'success');
+                    addLogMessage(`🌍 Public IP detected: ${publicIP}`);
+                } else {
+                    throw new Error('Could not detect IP from any service');
+                }
+                
+            } catch (error) {
+                console.error('IP detection error:', error);
+                ipInput.value = 'Failed to detect IP address';
+                showToast('Failed to detect IP address', 'error');
+                addLogMessage('❌ Failed to detect public IP address');
+            } finally {
+                button.disabled = false;
+                button.textContent = '🔍 Find My IP';
+            }
+        });
+
+        function copyConnectionString() {
+            const connectionString = document.getElementById('connectionString').value;
+            if (connectionString && connectionString !== 'IP:PORT') {
+                copyToClipboard(connectionString, 'Connection String');
+            } else {
+                showToast('No connection string available', 'error');
+            }
+        }
+
+        // Connection Diagnostics
+        document.getElementById('testConnectionBtn').addEventListener('click', async () => {
+            const button = document.getElementById('testConnectionBtn');
+            const portStatus = document.getElementById('portStatusIndicator');
+            const localIP = document.getElementById('localIPIndicator');
+            
+            try {
+                button.disabled = true;
+                button.textContent = '🔍 Testing...';
+                
+                // Test connection using backend
+                const response = await fetch('/api/connection-test');
+                const data = await response.json();
+                
+                // Update port status
+                if (data.portOpen) {
+                    portStatus.textContent = 'Open';
+                    portStatus.className = 'text-xs px-2 py-1 rounded bg-green-600 text-white';
+                } else {
+                    portStatus.textContent = 'Closed';
+                    portStatus.className = 'text-xs px-2 py-1 rounded bg-red-600 text-white';
+                }
+                
+                // Get local IP
+                try {
+                    const ipResponse = await fetch('https://api.ipify.org?format=json');
+                    const ipData = await ipResponse.json();
+                    localIP.textContent = ipData.ip;
+                } catch (error) {
+                    localIP.textContent = 'Failed to detect';
+                }
+                
+                // Show detailed results
+                let message = `Server: ${data.serverRunning ? 'Running' : 'Stopped'}, Port: ${data.portOpen ? 'Open' : 'Closed'}`;
+                showToast(message, data.portOpen ? 'success' : 'error');
+                addLogMessage(`🔧 Connection test: ${message}`);
+                
+                // If port is closed, show troubleshooting tips
+                if (!data.portOpen) {
+                    addLogMessage('💡 Troubleshooting: Make sure server is running and port 25565 is forwarded');
+                }
+                
+            } catch (error) {
+                console.error('Connection test error:', error);
+                showToast('Connection test failed', 'error');
+                addLogMessage('❌ Connection test failed');
+            } finally {
+                button.disabled = false;
+                button.textContent = '🔍 Test Connection';
+            }
+        });
+
+        // Update server status indicator
+        function updateServerStatusIndicator(status) {
+            const indicator = document.getElementById('serverStatusIndicator');
+            if (status === 'running') {
+                indicator.textContent = 'Running';
+                indicator.className = 'text-xs px-2 py-1 rounded bg-green-600 text-white';
+            } else {
+                indicator.textContent = 'Stopped';
+                indicator.className = 'text-xs px-2 py-1 rounded bg-red-600 text-white';
+            }
+        }
+
+        // Update server status when it changes
+        socket.on('serverStatus', (data) => {
+            updateServerStatusIndicator(data.status);
+        });
+
+        async function searchModrinth(query, version, loader, sort, showAll = false) {
+            try {
+                showToast(showAll ? 'Loading popular mods...' : 'Searching Modrinth...', 'info');
+                
+                // Build Modrinth API URL
+                const params = new URLSearchParams({
+                    facets: JSON.stringify([["versions:" + version], ["loaders:" + loader]]),
+                    offset: '0',
+                    limit: '50', // Show more mods
+                    index: sort
+                });
+                
+                // Add query if provided
+                if (query && !showAll) {
+                    params.append('query', query);
+                }
+                
+                const response = await fetch(`https://api.modrinth.com/v2/search?${params}`);
+                const data = await response.json();
+                
+                displayModrinthResults(data.hits);
+                showToast(`Found ${data.hits.length} mods`, 'success');
+                
+            } catch (error) {
+                console.error('Modrinth search error:', error);
+                showToast('Failed to search Modrinth', 'error');
+            }
+        }
+
+        function displayModrinthResults(mods) {
+            const resultsContainer = document.getElementById('modrinthResults');
+            const modList = document.getElementById('modrinthList');
+            
+            if (mods.length === 0) {
+                modList.innerHTML = '<div class="col-span-full text-gray-500 text-center py-8">No mods found</div>';
+            } else {
+                modList.innerHTML = mods.map(mod => `
+                    <div class="bg-minecraft-gray border border-minecraft-light-gray rounded-lg p-4 hover:border-minecraft-green transition-colors">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex-1">
+                                <h4 class="font-semibold text-white mb-1">${mod.title}</h4>
+                                <p class="text-sm text-gray-400 mb-2">${mod.description.substring(0, 100)}${mod.description.length > 100 ? '...' : ''}</p>
+                                <div class="flex items-center space-x-4 text-xs text-gray-500">
+                                    <span>📥 ${mod.downloads.toLocaleString()}</span>
+                                    <span>👥 ${mod.followers.toLocaleString()}</span>
+                                    <span>⭐ ${mod.project_type}</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col space-y-2">
+                                <button onclick="downloadMod('${mod.project_id}', '${mod.title}')" 
+                                        class="px-3 py-1 bg-minecraft-green text-black text-xs rounded hover:bg-green-400">
+                                    Download
+                                </button>
+                                <a href="https://modrinth.com/mod/${mod.project_id}" target="_blank" 
+                                   class="px-3 py-1 bg-minecraft-light-gray text-white text-xs rounded hover:bg-gray-500 text-center">
+                                    View
+                                </a>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            ${mod.loaders.map(loader => `<span class="px-2 py-1 bg-minecraft-dark text-xs rounded">${loader}</span>`).join('')}
+                            ${mod.versions.slice(0, 3).map(version => `<span class="px-2 py-1 bg-minecraft-dark text-xs rounded">${version}</span>`).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            resultsContainer.classList.remove('hidden');
+        }
+
+        async function downloadMod(projectId, modName) {
+            try {
+                showToast(`Downloading ${modName}...`, 'info');
+                
+                // Get latest version for the selected loader and version
+                const version = document.getElementById('modVersion').value;
+                const loader = document.getElementById('modLoader').value;
+                
+                const versionsResponse = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version`);
+                const versions = await versionsResponse.json();
+                
+                // Find compatible version
+                const compatibleVersion = versions.find(v => 
+                    v.loaders.includes(loader) && v.game_versions.includes(version)
+                );
+                
+                if (!compatibleVersion) {
+                    showToast(`No compatible version found for ${loader} ${version}`, 'error');
+                    return;
+                }
+                
+                // Get the JAR file
+                const jarFile = compatibleVersion.files.find(f => f.primary);
+                if (!jarFile) {
+                    showToast('No JAR file found for this mod', 'error');
+                    return;
+                }
+                
+                // Download the mod
+                const downloadResponse = await fetch(`/api/download-mod`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: jarFile.url,
+                        filename: jarFile.filename,
+                        modName: modName
+                    })
+                });
+                
+                const result = await downloadResponse.json();
+                if (result.success) {
+                    showToast(`Successfully downloaded ${modName}`, 'success');
+                } else {
+                    showToast(result.message || 'Failed to download mod', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                showToast('Failed to download mod', 'error');
+            }
+        }
+
+        // Fetch initial server status
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(status => {
+                updateServerStatus({ isRunning: status.status === 'running' });
+            })
+            .catch(error => {
+                console.error('Failed to fetch server status:', error);
+                showToast('Failed to fetch server status', 'error');
+            });
+
+        // Fetch initial logs
+        fetch('/api/logs')
+            .then(response => response.json())
+            .then(data => {
+                if (data.logs) {
+                    data.logs.forEach(log => {
+                        const logText = `[${log.timestamp}] [${log.level}] ${log.message}`;
+                        addLogMessage(logText);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Failed to fetch logs:', error);
+                showToast('Failed to fetch server logs', 'error');
+            });
+
+        // Auto-update notification system
+        let currentUpdateInfo = null;
+
+        // Listen for update notifications from server
+        socket.on('updateAvailable', (updateInfo) => {
+            currentUpdateInfo = updateInfo;
+            showUpdateNotification(updateInfo);
+        });
+
+        function showUpdateNotification(updateInfo) {
+            const notification = document.getElementById('updateNotification');
+            const version = document.getElementById('updateVersion');
+            const date = document.getElementById('updateDate');
+            const changelog = document.getElementById('updateChangelog');
+            
+            version.textContent = updateInfo.version;
+            date.textContent = new Date(updateInfo.publishedAt).toLocaleDateString();
+            changelog.textContent = updateInfo.changelog || 'No changelog available';
+            
+            notification.classList.remove('hidden');
+            showToast('New version available!', 'info');
+        }
+
+        // Update notification event handlers
+        document.getElementById('viewUpdateDetails').addEventListener('click', () => {
+            const details = document.getElementById('updateDetails');
+            details.classList.toggle('hidden');
+        });
+
+        document.getElementById('dismissUpdate').addEventListener('click', () => {
+            document.getElementById('updateNotification').classList.add('hidden');
+        });
+
+        document.getElementById('downloadUpdate').addEventListener('click', () => {
+            if (currentUpdateInfo && currentUpdateInfo.downloadUrl) {
+                window.open(currentUpdateInfo.downloadUrl, '_blank');
+                showToast('Opening download page...', 'info');
+            }
+        });
+
+        document.getElementById('checkForUpdates').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/check-updates');
+                const updateInfo = await response.json();
+                
+                if (updateInfo.available) {
+                    currentUpdateInfo = updateInfo;
+                    showUpdateNotification(updateInfo);
+                } else {
+                    showToast('No updates available', 'info');
+                }
+            } catch (error) {
+                console.error('Update check error:', error);
+                showToast('Failed to check for updates', 'error');
+            }
+        });
+
+        // Manual update check on page load
+        setTimeout(async () => {
+            try {
+                const response = await fetch('/api/check-updates');
+                const updateInfo = await response.json();
+                
+                if (updateInfo.available) {
+                    currentUpdateInfo = updateInfo;
+                    showUpdateNotification(updateInfo);
+                }
+            } catch (error) {
+                console.error('Initial update check error:', error);
+            }
+        }, 3000); // Check 3 seconds after page load
+    </script>
+</body>
+</html> 
