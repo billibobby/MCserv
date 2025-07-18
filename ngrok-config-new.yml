@@ -1,0 +1,17 @@
+# MCServ Ngrok Configuration
+# Copy this to ~/.ngrok2/ngrok.yml for persistent tunnels
+
+version: "2"
+authtoken: YOUR_AUTH_TOKEN_HERE
+region: us
+
+tunnels:
+  mcserv-http:
+    proto: http
+    addr: 3000
+    subdomain: your-subdomain
+    
+  mcserv-tcp:
+    proto: tcp
+    addr: 25565
+    remote_addr: 0.tcp.ngrok.io:12345 
